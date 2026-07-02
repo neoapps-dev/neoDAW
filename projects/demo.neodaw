@@ -1,0 +1,93 @@
+{
+  "beatsPerBar": 4,
+  "bpm": 128.0,
+  "channels": [
+    {
+      "attack": 0.01,
+      "decay": 0.2,
+      "filterCutoff": 0.8,
+      "filterResonance": 0.3,
+      "filterType": 0,
+      "isSampler": false,
+      "mixerChannel": 0,
+      "muted": false,
+      "name": "Bass",
+      "pan": 0.0,
+      "release": 0.8,
+      "sampleEnd": 1.0,
+      "samplePath": "",
+      "sampleStart": 0.0,
+      "sustain": 0.6,
+      "volume": 0.7,
+      "waveform": 1
+    },
+    {
+      "attack": 0.001,
+      "decay": 0.05,
+      "filterCutoff": 0.6,
+      "filterResonance": 0.1,
+      "filterType": 0,
+      "isSampler": false,
+      "mixerChannel": 1,
+      "muted": false,
+      "name": "Lead",
+      "pan": -0.2,
+      "release": 0.4,
+      "sampleEnd": 1.0,
+      "samplePath": "",
+      "sampleStart": 0.0,
+      "sustain": 0.8,
+      "volume": 0.6,
+      "waveform": 2
+    }
+  ],
+  "mixer": [
+    {"muted": false, "name": "Mixer 0", "pan": 0.0, "volume": 0.8},
+    {"muted": false, "name": "Mixer 1", "pan": 0.0, "volume": 0.8},
+    {"muted": false, "name": "Mixer 2", "pan": 0.0, "volume": 0.8},
+    {"muted": false, "name": "Mixer 3", "pan": 0.0, "volume": 0.8},
+    {"muted": false, "name": "Mixer 4", "pan": 0.0, "volume": 0.8},
+    {"muted": false, "name": "Mixer 5", "pan": 0.0, "volume": 0.8},
+    {"muted": false, "name": "Mixer 6", "pan": 0.0, "volume": 0.8},
+    {"muted": false, "name": "Mixer 7", "pan": 0.0, "volume": 0.8}
+  ],
+  "name": "Demo Song",
+  "patterns": [
+    {
+      "channelIndex": 0,
+      "color": -11751638,
+      "lengthTicks": 1920,
+      "name": "Bass Pattern",
+      "notes": [
+        {"key": 36, "length": 960, "start": 0, "velocity": 100},
+        {"key": 43, "length": 480, "start": 960, "velocity": 90},
+        {"key": 41, "length": 480, "start": 1440, "velocity": 90}
+      ]
+    },
+    {
+      "channelIndex": 1,
+      "color": -5046272,
+      "lengthTicks": 1920,
+      "name": "Lead Pattern",
+      "notes": [
+        {"key": 60, "length": 240, "start": 0, "velocity": 100},
+        {"key": 62, "length": 240, "start": 240, "velocity": 90},
+        {"key": 64, "length": 240, "start": 480, "velocity": 100},
+        {"key": 65, "length": 240, "start": 720, "velocity": 90},
+        {"key": 67, "length": 480, "start": 960, "velocity": 100},
+        {"key": 65, "length": 240, "start": 1440, "velocity": 90},
+        {"key": 64, "length": 240, "start": 1680, "velocity": 90}
+      ]
+    }
+  ],
+  "playlist": [
+    {"muted": false, "patternIndex": 0, "startTick": 0, "track": 0},
+    {"muted": false, "patternIndex": 0, "startTick": 1920, "track": 0},
+    {"muted": false, "patternIndex": 1, "startTick": 0, "track": 1},
+    {"muted": false, "patternIndex": 1, "startTick": 1920, "track": 1}
+  ],
+  "ppq": 480,
+  "selectedChannel": 0,
+  "selectedPattern": 0,
+  "version": 1
+}
