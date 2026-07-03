@@ -54,10 +54,13 @@ target_include_directories(neodaw PRIVATE
 target_link_libraries(neodaw PRIVATE
   SDL2::SDL2
   OpenGL::GL
-  m
   fluidlite-static
   nlohmann_json::nlohmann_json
 )
+
+if(UNIX)
+  target_link_libraries(neodaw PRIVATE m)
+endif()
 
 if(UNIX AND NOT APPLE)
   target_link_libraries(neodaw PRIVATE dl rt)
