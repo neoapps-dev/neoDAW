@@ -4,14 +4,17 @@
 #include "App.h"
 #include "imgui.h"
 #include "imgui_internal.h"
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <commdlg.h>
+#endif
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
-#include <sys/stat.h>
-#include <dirent.h>
-#include <unistd.h>
+#include <filesystem>
 #include <sstream>
 static const ImU32 COL_BG = IM_COL32(30, 30, 30, 255);
 static const ImU32 COL_BG2 = IM_COL32(45, 45, 45, 255);
@@ -169,29 +172,20 @@ void refreshBrowser(AppState& state, const char* path) {
     state.browserIsDir.clear();
     state.browserSelected = -1;
     state.browserPath = path;
-    DIR* dir = opendir(path);
-    if (!dir) {
-        fprintf(stderr, "opendir failed: %s\n", path);
-        return;
+    std::filesystem::path base;
+    if (strcmp(path, ".") == 0) {
+        base = std::filesystem::current_path();
+    } else {
+        base = std::filesystem::path(path);
     }
-    std::string base = path;
-    if (base == ".") {
-        char cwd[1024];
-        getcwd(cwd, sizeof(cwd));
-        base = cwd;
-    }
-    if (!base.empty() && base.back() == '/') base.pop_back();
-    struct dirent* entry;
-    while ((entry = readdir(dir)) != nullptr) {
-        std::string name = entry->d_name;
+    if (base.filename().empty()) base = base.parent_path();
+    std::error_code ec;
+    for (const auto& entry : std::filesystem::directory_iterator(base, ec)) {
+        std::string name = entry.path().filename().string();
         if (name == "." || name == "..") continue;
-        std::string fullPath = base + "/" + name;
-        struct stat st;
-        bool isDir = stat(fullPath.c_str(), &st) == 0 && S_ISDIR(st.st_mode);
         state.browserFiles.push_back(name);
-        state.browserIsDir.push_back(isDir);
+        state.browserIsDir.push_back(entry.is_directory(ec));
     }
-    closedir(dir);
     std::vector<int> idx(state.browserFiles.size());
     for (int i = 0; i < (int)idx.size(); i++) idx[i] = i;
     std::sort(idx.begin(), idx.end(), [&](int a, int b) {
@@ -338,6 +332,23 @@ void renderMainMenu(AppState& state) {
                 state.showExportDialog = true;
             }
             if (ImGui::MenuItem("Export MIDI...")) {
+#ifdef _WIN32
+                char mpath[MAX_PATH] = {0};
+                OPENFILENAMEA ofn = {0};
+                ofn.lStructSize = sizeof(ofn);
+                char filter[] = "MIDI Files\0*.mid\0All Files\0*.*\0";
+                ofn.lpstrFilter = filter;
+                ofn.lpstrFile = mpath;
+                ofn.nMaxFile = sizeof(mpath);
+                ofn.lpstrTitle = "Export MIDI";
+                ofn.Flags = OFN_OVERWRITEPROMPT | OFN_NOCHANGEDIR | OFN_HIDEREADONLY;
+                if (GetSaveFileNameA(&ofn)) {
+                    if (strlen(mpath) > 0) {
+                        if (strcmp(mpath + strlen(mpath) - 4, ".mid") != 0) strncat(mpath, ".mid", sizeof(mpath) - strlen(mpath) - 1);
+                        appExportMIDI(state, mpath);
+                    }
+                }
+#else
                 FILE* fp = popen("zenity --file-selection --save --confirm-overwrite --title='Export MIDI' --file-filter='*.mid' 2>/dev/null", "r");
                 if (fp) {
                     char mpath[4096];
@@ -351,6 +362,7 @@ void renderMainMenu(AppState& state) {
                     }
                     pclose(fp);
                 }
+#endif
             }
             ImGui::Separator();
             if (ImGui::MenuItem("Quit", "Ctrl+Q")) {
@@ -1392,9 +1404,7 @@ void renderMixer(AppState& state) {
 
 static std::string normalizePath(const std::string& p) {
     if (p == ".") {
-        char cwd[1024];
-        getcwd(cwd, sizeof(cwd));
-        return cwd;
+        return std::filesystem::current_path().generic_string();
     }
     return p;
 }
@@ -1478,7 +1488,11 @@ void renderExportDialog(AppState& state) {
         ImGui::SliderInt("Sample Rate", &state.exportSampleRate, 22050, 192000);
         ImGui::PopItemWidth();
         if (strlen(state.exportPath) == 0) {
+#ifdef _WIN32
+            const char* home = getenv("USERPROFILE");
+#else
             const char* home = getenv("HOME");
+#endif
             if (home) snprintf(state.exportPath, sizeof(state.exportPath), "%s/export.wav", home);
         }
 

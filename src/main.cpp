@@ -8,6 +8,11 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <commdlg.h>
+#endif
 static SDL_Window* gWindow = nullptr;
 static SDL_GLContext gGLContext = nullptr;
 static AppState gAppState;
@@ -75,10 +80,21 @@ static void shutdown() {
 }
 
 static void handleFileOpen() {
-    char cwd[1024];
-    getcwd(cwd, sizeof(cwd));
-    SDL_Event openEvent;
-    FILE* fp = popen("zenity --file-selection --title='Open Project' --file-filter='*.neodaw' 2>/dev/null", "r"); //neo: use zenity like a real man
+#ifdef _WIN32
+    char path[MAX_PATH] = {0};
+    OPENFILENAMEA ofn = {0};
+    ofn.lStructSize = sizeof(ofn);
+    char filter[] = "neoDAW Project\0*.neodaw\0All Files\0*.*\0";
+    ofn.lpstrFilter = filter;
+    ofn.lpstrFile = path;
+    ofn.nMaxFile = sizeof(path);
+    ofn.lpstrTitle = "Open Project";
+    ofn.Flags = OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR | OFN_HIDEREADONLY;
+    if (GetOpenFileNameA(&ofn) && strlen(path) > 0) {
+        appLoadProject(gAppState, path);
+    }
+#else
+    FILE* fp = popen("zenity --file-selection --title='Open Project' --file-filter='*.neodaw' 2>/dev/null", "r");
     if (!fp) return;
     char path[4096];
     if (fgets(path, sizeof(path), fp)) {
@@ -89,10 +105,26 @@ static void handleFileOpen() {
         }
     }
     pclose(fp);
+#endif
 }
 
 static void handleFileSaveAs() {
-    FILE* fp = popen("zenity --file-selection --save --title='Save Project As' --file-filter='*.neodaw' 2>/dev/null", "r"); //neo: use zenity like a real man
+#ifdef _WIN32
+    char path[MAX_PATH] = {0};
+    OPENFILENAMEA ofn = {0};
+    ofn.lStructSize = sizeof(ofn);
+    char filter[] = "neoDAW Project\0*.neodaw\0All Files\0*.*\0";
+    ofn.lpstrFilter = filter;
+    ofn.lpstrFile = path;
+    ofn.nMaxFile = sizeof(path);
+    ofn.lpstrTitle = "Save Project As";
+    ofn.Flags = OFN_OVERWRITEPROMPT | OFN_NOCHANGEDIR | OFN_HIDEREADONLY;
+    if (GetSaveFileNameA(&ofn) && strlen(path) > 0) {
+        if (strcmp(path + strlen(path) - 7, ".neodaw") != 0) strncat(path, ".neodaw", sizeof(path) - strlen(path) - 1);
+        appSaveProject(gAppState, path);
+    }
+#else
+    FILE* fp = popen("zenity --file-selection --save --title='Save Project As' --file-filter='*.neodaw' 2>/dev/null", "r");
     if (!fp) return;
     char path[4096];
     if (fgets(path, sizeof(path), fp)) {
@@ -104,9 +136,24 @@ static void handleFileSaveAs() {
         }
     }
     pclose(fp);
+#endif
 }
 
 static void handleImportMIDI() {
+#ifdef _WIN32
+    char path[MAX_PATH] = {0};
+    OPENFILENAMEA ofn = {0};
+    ofn.lStructSize = sizeof(ofn);
+    char filter[] = "MIDI Files\0*.mid;*.midi\0All Files\0*.*\0";
+    ofn.lpstrFilter = filter;
+    ofn.lpstrFile = path;
+    ofn.nMaxFile = sizeof(path);
+    ofn.lpstrTitle = "Import MIDI";
+    ofn.Flags = OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR | OFN_HIDEREADONLY;
+    if (GetOpenFileNameA(&ofn) && strlen(path) > 0) {
+        appImportMIDI(gAppState, path);
+    }
+#else
     FILE* fp = popen("zenity --file-selection --title='Import MIDI' --file-filter='*.mid *.midi' 2>/dev/null", "r");
     if (!fp) return;
     char path[4096];
@@ -118,6 +165,7 @@ static void handleImportMIDI() {
         }
     }
     pclose(fp);
+#endif
 }
 
 int main(int argc, char** argv) {

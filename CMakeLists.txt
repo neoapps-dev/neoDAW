@@ -62,3 +62,6 @@ target_link_libraries(neodaw PRIVATE
 if(UNIX AND NOT APPLE)
   target_link_libraries(neodaw PRIVATE dl rt)
 endif()
+if(WIN32)
+  target_link_libraries(neodaw PRIVATE comdlg32)
+endif()
