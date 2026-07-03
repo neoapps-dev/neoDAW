@@ -25,6 +25,8 @@ struct AppState {
     int pianoRollDragStartY = 0;
     int pianoRollDragStartKey = 0;
     int pianoRollDragStartTick = 0;
+    std::vector<int> pianoRollDragOrigTicks;
+    std::vector<int> pianoRollDragOrigKeys;
     int pianoRollResizingNote = -1;
     bool pianoRollResizing = false;
     int pianoRollDragStartLength = 0;
@@ -59,6 +61,8 @@ struct AppState {
     int playlistDragOrigTick = 0;
     int playlistDragOrigTrack = 0;
     bool requestQuit = false;
+    std::vector<Note> clipboard;
+    std::vector<int> pianoRollSelectedNotes;
     bool pianoRollScrolling = false;
     int pianoRollScrollStartX = 0;
     int pianoRollScrollStartY = 0;

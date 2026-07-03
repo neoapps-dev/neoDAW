@@ -790,16 +790,26 @@ void AudioEngine::render(float* output, unsigned int frameCount) {
         slotLimitersInit = true;
     }
 
-    if (!hasPlaylist) {
-        audioMutex.unlock();
-        return;
-    }
-
-    int totalTicks = ppq * 4;
-    for (auto& clip : project->playlist) {
-        if (clip.patternIndex >= 0 && clip.patternIndex < (int)project->patterns.size()) {
-            int end = clip.startTick + project->patterns[clip.patternIndex].lengthTicks;
-            if (end > totalTicks) totalTicks = end;
+    bool usePlaylist = hasPlaylist;
+    int totalTicks;
+    if (usePlaylist) {
+        totalTicks = ppq * 4;
+        for (auto& clip : project->playlist) {
+            if (clip.patternIndex >= 0 && clip.patternIndex < (int)project->patterns.size()) {
+                int end = clip.startTick + project->patterns[clip.patternIndex].lengthTicks;
+                if (end > totalTicks) totalTicks = end;
+            }
+        }
+    } else {
+        int selPat = project->selectedPattern;
+        if (selPat < 0 || selPat >= (int)project->patterns.size()) {
+            audioMutex.unlock();
+            return;
+        }
+        totalTicks = project->patterns[selPat].lengthTicks;
+        if (totalTicks <= 0) {
+            audioMutex.unlock();
+            return;
         }
     }
 
@@ -854,111 +864,217 @@ void AudioEngine::render(float* output, unsigned int frameCount) {
     while (processedFrames < (int)frameCount) {
         int chunkFrames = std::min((int)frameCount - processedFrames, 512);
         std::fill(output + processedFrames * numChannels, output + (processedFrames + chunkFrames) * numChannels, 0.0f);
-        for (int ci = 0; ci < (int)project->playlist.size(); ci++) {
-            auto& clip = project->playlist[ci];
-            if (clip.muted) continue;
-            int patIdx = clip.patternIndex;
-            if (patIdx < 0 || patIdx >= (int)project->patterns.size()) continue;
-            auto& pat = project->patterns[patIdx];
-            int patLen = pat.lengthTicks;
-            if (patLen <= 0) continue;
-            int clipEnd = clip.startTick + patLen;
-            if (currentTick < clip.startTick || currentTick >= clipEnd) {
-                turnOffAllClipNotes(ci);
-                continue;
-            }
+        if (usePlaylist) {
+            for (int ci = 0; ci < (int)project->playlist.size(); ci++) {
+                auto& clip = project->playlist[ci];
+                if (clip.muted) continue;
+                int patIdx = clip.patternIndex;
+                if (patIdx < 0 || patIdx >= (int)project->patterns.size()) continue;
+                auto& pat = project->patterns[patIdx];
+                int patLen = pat.lengthTicks;
+                if (patLen <= 0) continue;
+                int clipEnd = clip.startTick + patLen;
+                if (currentTick < clip.startTick || currentTick >= clipEnd) {
+                    turnOffAllClipNotes(ci);
+                    continue;
+                }
 
-            int localTick = currentTick - clip.startTick;
-            int chanIdx = pat.channelIndex;
-            if (chanIdx < 0 || chanIdx >= 16) continue;
-            Channel& ch = project->getOrCreateChannel(chanIdx);
-            if (ch.muted) continue;
-            float mixVol = 1.0f;
-            bool mixMuted = false;
-            if (ch.mixerChannel >= 0 && ch.mixerChannel < (int)project->mixer.size()) {
-                mixVol = project->mixer[ch.mixerChannel].volume;
-                mixMuted = project->mixer[ch.mixerChannel].muted;
-            }
-            if (mixMuted) continue;
-            auto& crs = clipRenderStates[ci];
-            std::vector<int> toTurnOn, toTurnOff;
-            for (auto& note : pat.notes) {
-                int noteEnd = note.start + note.length;
-                if (note.start <= localTick && noteEnd > localTick) {
-                    if (std::find(crs.activeNotes.begin(), crs.activeNotes.end(), note.key) == crs.activeNotes.end()) toTurnOn.push_back(note.key);
-                } else if (noteEnd <= localTick) {
-                    toTurnOff.push_back(note.key);
+                int localTick = currentTick - clip.startTick;
+                int chanIdx = pat.channelIndex;
+                if (chanIdx < 0 || chanIdx >= 16) continue;
+                Channel& ch = project->getOrCreateChannel(chanIdx);
+                if (ch.muted) continue;
+                float mixVol = 1.0f;
+                bool mixMuted = false;
+                if (ch.mixerChannel >= 0 && ch.mixerChannel < (int)project->mixer.size()) {
+                    mixVol = project->mixer[ch.mixerChannel].volume;
+                    mixMuted = project->mixer[ch.mixerChannel].muted;
                 }
-            }
+                if (mixMuted) continue;
+                auto& crs = clipRenderStates[ci];
+                std::vector<int> toTurnOn, toTurnOff;
+                for (auto& note : pat.notes) {
+                    int noteEnd = note.start + note.length;
+                    if (note.start <= localTick && noteEnd > localTick) {
+                        if (std::find(crs.activeNotes.begin(), crs.activeNotes.end(), note.key) == crs.activeNotes.end()) toTurnOn.push_back(note.key);
+                    } else if (noteEnd <= localTick) {
+                        toTurnOff.push_back(note.key);
+                    }
+                }
 
-            if (ch.useSF2) {
-                for (int k : toTurnOff) {
-                    auto it = std::find(crs.activeNotes.begin(), crs.activeNotes.end(), k);
-                    if (it != crs.activeNotes.end()) {
-                        crs.activeNotes.erase(it);
-                        if (fluidSynth) fluid_synth_noteoff(fluidSynth, chanIdx, k);
+                if (ch.useSF2) {
+                    for (int k : toTurnOff) {
+                        auto it = std::find(crs.activeNotes.begin(), crs.activeNotes.end(), k);
+                        if (it != crs.activeNotes.end()) {
+                            crs.activeNotes.erase(it);
+                            if (fluidSynth) fluid_synth_noteoff(fluidSynth, chanIdx, k);
+                        }
                     }
-                }
-                for (int k : toTurnOn) {
-                    if (std::find(crs.activeNotes.begin(), crs.activeNotes.end(), k) == crs.activeNotes.end()) {
-                        crs.activeNotes.push_back(k);
-                        if (fluidSynth) fluid_synth_noteon(fluidSynth, chanIdx, k, 100);
+                    for (int k : toTurnOn) {
+                        if (std::find(crs.activeNotes.begin(), crs.activeNotes.end(), k) == crs.activeNotes.end()) {
+                            crs.activeNotes.push_back(k);
+                            if (fluidSynth) fluid_synth_noteon(fluidSynth, chanIdx, k, 100);
+                        }
                     }
-                }
-            } else {
-                EnvelopeParams env{ch.attack, ch.decay, ch.sustain, ch.release};
-                synthPool[chanIdx].setEnvelope(env);
-                synthPool[chanIdx].waveform = ch.waveform;
-                synthPool[chanIdx].filterCutoff = ch.filterCutoff;
-                synthPool[chanIdx].filterResonance = ch.filterResonance;
-                synthPool[chanIdx].filterType = ch.filterType;
-                synthPool[chanIdx].volume = ch.volume * mixVol;
-                synthPool[chanIdx].pan = ch.pan;
-                for (int k : toTurnOff) {
-                    auto it = std::find(crs.activeNotes.begin(), crs.activeNotes.end(), k);
-                    if (it != crs.activeNotes.end()) {
-                        crs.activeNotes.erase(it);
-                        synthPool[chanIdx].noteOff(k, localTick);
+                } else {
+                    EnvelopeParams env{ch.attack, ch.decay, ch.sustain, ch.release};
+                    synthPool[chanIdx].setEnvelope(env);
+                    synthPool[chanIdx].waveform = ch.waveform;
+                    synthPool[chanIdx].filterCutoff = ch.filterCutoff;
+                    synthPool[chanIdx].filterResonance = ch.filterResonance;
+                    synthPool[chanIdx].filterType = ch.filterType;
+                    synthPool[chanIdx].volume = ch.volume * mixVol;
+                    synthPool[chanIdx].pan = ch.pan;
+                    for (int k : toTurnOff) {
+                        auto it = std::find(crs.activeNotes.begin(), crs.activeNotes.end(), k);
+                        if (it != crs.activeNotes.end()) {
+                            crs.activeNotes.erase(it);
+                            synthPool[chanIdx].noteOff(k, localTick);
+                        }
                     }
-                }
-                for (int k : toTurnOn) {
-                    if (std::find(crs.activeNotes.begin(), crs.activeNotes.end(), k) == crs.activeNotes.end()) {
-                        crs.activeNotes.push_back(k);
-                        synthPool[chanIdx].noteOn(k, 100 / 127.0f, localTick);
+                    for (int k : toTurnOn) {
+                        if (std::find(crs.activeNotes.begin(), crs.activeNotes.end(), k) == crs.activeNotes.end()) {
+                            crs.activeNotes.push_back(k);
+                            synthPool[chanIdx].noteOn(k, 100 / 127.0f, localTick);
+                        }
                     }
+                    float chBuf[4096];
+                    int chSamples = chunkFrames * numChannels;
+                    if (chSamples > 4096) chSamples = 4096;
+                    std::fill(chBuf, chBuf + chSamples, 0.0f);
+                    synthPool[chanIdx].render(chBuf, chunkFrames, numChannels, (float)sampleRate, localTick, patLen, currentBPM, ppq);
+                    for (int f = 0; f < chSamples; f++)
+                        output[processedFrames * numChannels + f] += chBuf[f];
                 }
-                float chBuf[4096];
-                int chSamples = chunkFrames * numChannels;
-                if (chSamples > 4096) chSamples = 4096;
-                std::fill(chBuf, chBuf + chSamples, 0.0f);
-                synthPool[chanIdx].render(chBuf, chunkFrames, numChannels, (float)sampleRate, localTick, patLen, currentBPM, ppq);
-                for (int f = 0; f < chSamples; f++)
-                    output[processedFrames * numChannels + f] += chBuf[f];
-            }
 
-            if (ch.isSampler && ch.sampleIndex >= 0 && ch.sampleIndex < (int)samples.size()) {
-                auto& sd = samples[ch.sampleIndex];
-                if (sd.loaded && !sd.samples.empty()) {
-                    float secPerTick = 60.0f / (currentBPM * ppq);
-                    double localSec = localTick * secPerTick;
-                    int sdChan = sd.numChannels;
-                    size_t totalFrames = sd.samples.size() / sdChan;
-                    size_t startFrame = (size_t)(ch.sampleStart * totalFrames);
-                    size_t endFrame = (size_t)(ch.sampleEnd * totalFrames);
-                    size_t playFrames = endFrame - startFrame;
-                    if (playFrames > 0) {
-                        double sampleRateRatio = sd.sampleRate / (double)sampleRate;
-                        double frameOffset = localSec * sd.sampleRate;
-                        for (int f = 0; f < chunkFrames; f++) {
-                            double pos = std::fmod(frameOffset + f * sampleRateRatio, (double)playFrames);
-                            size_t frame = startFrame + (size_t)pos;
-                            if (frame >= endFrame) frame = startFrame;
-                            size_t sdi = frame * sdChan;
-                            float sv = sd.samples[sdi] * ch.volume * mixVol;
-                            output[processedFrames * numChannels + f * numChannels] += sv;
-                            if (numChannels > 1) {
-                                float sr = sdChan > 1 ? sd.samples[sdi + 1] * ch.volume * mixVol : sv;
-                                output[processedFrames * numChannels + f * numChannels + 1] += sr;
+                if (ch.isSampler && ch.sampleIndex >= 0 && ch.sampleIndex < (int)samples.size()) {
+                    auto& sd = samples[ch.sampleIndex];
+                    if (sd.loaded && !sd.samples.empty()) {
+                        float secPerTick = 60.0f / (currentBPM * ppq);
+                        double localSec = localTick * secPerTick;
+                        int sdChan = sd.numChannels;
+                        size_t totalFrames = sd.samples.size() / sdChan;
+                        size_t startFrame = (size_t)(ch.sampleStart * totalFrames);
+                        size_t endFrame = (size_t)(ch.sampleEnd * totalFrames);
+                        size_t playFrames = endFrame - startFrame;
+                        if (playFrames > 0) {
+                            double sampleRateRatio = sd.sampleRate / (double)sampleRate;
+                            double frameOffset = localSec * sd.sampleRate;
+                            for (int f = 0; f < chunkFrames; f++) {
+                                double pos = std::fmod(frameOffset + f * sampleRateRatio, (double)playFrames);
+                                size_t frame = startFrame + (size_t)pos;
+                                if (frame >= endFrame) frame = startFrame;
+                                size_t sdi = frame * sdChan;
+                                float sv = sd.samples[sdi] * ch.volume * mixVol;
+                                output[processedFrames * numChannels + f * numChannels] += sv;
+                                if (numChannels > 1) {
+                                    float sr = sdChan > 1 ? sd.samples[sdi + 1] * ch.volume * mixVol : sv;
+                                    output[processedFrames * numChannels + f * numChannels + 1] += sr;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            int selPat = project->selectedPattern;
+            if (selPat >= 0 && selPat < (int)project->patterns.size()) {
+                auto& pat = project->patterns[selPat];
+                int patLen = pat.lengthTicks;
+                if (patLen > 0) {
+                    int localTick = currentTick;
+                    int chanIdx = pat.channelIndex;
+                    if (chanIdx >= 0 && chanIdx < 16) {
+                        Channel& ch = project->getOrCreateChannel(chanIdx);
+                        float mixVol = 1.0f;
+                        bool mixMuted = false;
+                        if (ch.mixerChannel >= 0 && ch.mixerChannel < (int)project->mixer.size()) {
+                            mixVol = project->mixer[ch.mixerChannel].volume;
+                            mixMuted = project->mixer[ch.mixerChannel].muted;
+                        }
+                        if (!ch.muted && !mixMuted) {
+                            std::vector<int> toTurnOn, toTurnOff;
+                            for (auto& note : pat.notes) {
+                                int noteEnd = note.start + note.length;
+                                if (note.start <= localTick && noteEnd > localTick) {
+                                    if (std::find(activeNotes.begin(), activeNotes.end(), note.key) == activeNotes.end()) toTurnOn.push_back(note.key);
+                                } else if (noteEnd <= localTick) {
+                                    toTurnOff.push_back(note.key);
+                                }
+                            }
+
+                            if (ch.useSF2) {
+                                for (int k : toTurnOff) {
+                                    auto it = std::find(activeNotes.begin(), activeNotes.end(), k);
+                                    if (it != activeNotes.end()) {
+                                        activeNotes.erase(it);
+                                        if (fluidSynth) fluid_synth_noteoff(fluidSynth, chanIdx, k);
+                                    }
+                                }
+                                for (int k : toTurnOn) {
+                                    if (std::find(activeNotes.begin(), activeNotes.end(), k) == activeNotes.end()) {
+                                        activeNotes.push_back(k);
+                                        if (fluidSynth) fluid_synth_noteon(fluidSynth, chanIdx, k, 100);
+                                    }
+                                }
+                            } else {
+                                EnvelopeParams env{ch.attack, ch.decay, ch.sustain, ch.release};
+                                synthPool[chanIdx].setEnvelope(env);
+                                synthPool[chanIdx].waveform = ch.waveform;
+                                synthPool[chanIdx].filterCutoff = ch.filterCutoff;
+                                synthPool[chanIdx].filterResonance = ch.filterResonance;
+                                synthPool[chanIdx].filterType = ch.filterType;
+                                synthPool[chanIdx].volume = ch.volume * mixVol;
+                                synthPool[chanIdx].pan = ch.pan;
+                                for (int k : toTurnOff) {
+                                    auto it = std::find(activeNotes.begin(), activeNotes.end(), k);
+                                    if (it != activeNotes.end()) {
+                                        activeNotes.erase(it);
+                                        synthPool[chanIdx].noteOff(k, localTick);
+                                    }
+                                }
+                                for (int k : toTurnOn) {
+                                    if (std::find(activeNotes.begin(), activeNotes.end(), k) == activeNotes.end()) {
+                                        activeNotes.push_back(k);
+                                        synthPool[chanIdx].noteOn(k, 100 / 127.0f, localTick);
+                                    }
+                                }
+                                float chBuf[4096];
+                                int chSamples = chunkFrames * numChannels;
+                                if (chSamples > 4096) chSamples = 4096;
+                                std::fill(chBuf, chBuf + chSamples, 0.0f);
+                                synthPool[chanIdx].render(chBuf, chunkFrames, numChannels, (float)sampleRate, localTick, patLen, currentBPM, ppq);
+                                for (int f = 0; f < chSamples; f++)
+                                    output[processedFrames * numChannels + f] += chBuf[f];
+                            }
+
+                            if (ch.isSampler && ch.sampleIndex >= 0 && ch.sampleIndex < (int)samples.size()) {
+                                auto& sd = samples[ch.sampleIndex];
+                                if (sd.loaded && !sd.samples.empty()) {
+                                    float secPerTick = 60.0f / (currentBPM * ppq);
+                                    double localSec = localTick * secPerTick;
+                                    int sdChan = sd.numChannels;
+                                    size_t totalFrames = sd.samples.size() / sdChan;
+                                    size_t startFrame = (size_t)(ch.sampleStart * totalFrames);
+                                    size_t endFrame = (size_t)(ch.sampleEnd * totalFrames);
+                                    size_t playFrames = endFrame - startFrame;
+                                    if (playFrames > 0) {
+                                        double sampleRateRatio = sd.sampleRate / (double)sampleRate;
+                                        double frameOffset = localSec * sd.sampleRate;
+                                        for (int f = 0; f < chunkFrames; f++) {
+                                            double pos = std::fmod(frameOffset + f * sampleRateRatio, (double)playFrames);
+                                            size_t frame = startFrame + (size_t)pos;
+                                            if (frame >= endFrame) frame = startFrame;
+                                            size_t sdi = frame * sdChan;
+                                            float sv = sd.samples[sdi] * ch.volume * mixVol;
+                                            output[processedFrames * numChannels + f * numChannels] += sv;
+                                            if (numChannels > 1) {
+                                                float sr = sdChan > 1 ? sd.samples[sdi + 1] * ch.volume * mixVol : sv;
+                                                output[processedFrames * numChannels + f * numChannels + 1] += sr;
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
