@@ -40,6 +40,7 @@ public:
     float getMasterVolume() const { return masterVolume.load(); }
     void setMasterVolume(float v) { masterVolume.store(v); }
     int loadSample(const std::string& path);
+    void clearSamples();
     const SampleData* getSample(int index) const;
     void previewNoteOn(int key, float velocity = 100.0f);
     void previewNoteOff(int key);
@@ -54,10 +55,17 @@ public:
     int previewChannel = -1;
     bool debugRenderEngineSingleToWav(const Project& proj, const Transport& trans, const char* path);
     bool debugRenderPoolFreshLoop(const Project& proj, const Transport& trans, const char* path);
+    struct SoundFontPreset {
+        int bank = 0;
+        int preset = 0;
+        std::string name;
+    };
     int fluidSfontId = -1;
     int loadSFont(const std::string& path);
     void unloadSFont();
     bool selectSFontPreset(int sfontId, int bank, int preset, int chan);
+    std::vector<SoundFontPreset> getSoundFontPresets(int sfontId);
+    void playSamplePreview(const std::string& path);
 
 private:
     static void audioCallback(void* userdata, Uint8* stream, int len);
@@ -86,4 +94,91 @@ private:
     std::atomic<int> previewOn{0};
     fluid_settings_t* fluidSettings = nullptr;
     fluid_synth_t* fluidSynth = nullptr;
+    
+    // --- Metronome Click Synthesizer State ---
+    int lastMetronomeBeat = -1;
+    int metronomeClickSampleRemaining = 0;
+    float metronomeClickPhase = 0.0f;
+    float metronomeClickFreq = 800.0f;
+    float metronomeClickPhaseStep = 0.0f;
+    float metronomeClickDecayStep = 0.0f;
+
+    // --- Mixer-slot isolation & effects ---
+    static constexpr int MAX_DELAY_SAMPLES = 88200; // 2 seconds at 44100
+    struct DelayLine {
+        std::vector<float> bufferL;
+        std::vector<float> bufferR;
+        int writePos = 0;
+        void init(int maxSamples) {
+            bufferL.assign(maxSamples, 0.0f);
+            bufferR.assign(maxSamples, 0.0f);
+            writePos = 0;
+        }
+        void write(float l, float r) {
+            bufferL[writePos] = l;
+            bufferR[writePos] = r;
+            writePos = (writePos + 1) % (int)bufferL.size();
+        }
+        void read(int delaySamples, float& outL, float& outR) const {
+            int sz = (int)bufferL.size();
+            int pos = (writePos - delaySamples + sz * 2) % sz;
+            outL = bufferL[pos];
+            outR = bufferR[pos];
+        }
+        void clear() {
+            std::fill(bufferL.begin(), bufferL.end(), 0.0f);
+            std::fill(bufferR.begin(), bufferR.end(), 0.0f);
+            writePos = 0;
+        }
+    };
+    DelayLine mixerDelays[NUM_MIXER_SLOTS];
+    bool mixerDelaysInit = false;
+
+    // --- Mixer-slot Filter States ---
+    struct FilterState {
+        float l1 = 0.0f, l2 = 0.0f; // Left channel state
+        float r1 = 0.0f, r2 = 0.0f; // Right channel state
+        void clear() {
+            l1 = l2 = r1 = r2 = 0.0f;
+        }
+    };
+    FilterState mixerFilters[NUM_MIXER_SLOTS];
+    bool mixerFiltersInit = false;
+
+    // --- Master Limiter DSP ---
+    struct MasterLimiter {
+        float gain = 1.0f;
+        float threshold = 0.95f;     // limit peak to -0.5 dB
+        float releaseCoeff = 0.998f; // smooth release envelope follower
+        
+        void process(float& l, float& r) {
+            float peak = std::max(std::abs(l), std::abs(r));
+            float targetGain = 1.0f;
+            if (peak > threshold) {
+                targetGain = threshold / peak;
+            }
+            if (targetGain < gain) {
+                gain = targetGain; // instant brickwall attack
+            } else {
+                gain = gain * releaseCoeff + targetGain * (1.0f - releaseCoeff); // smooth release
+            }
+            l *= gain;
+            r *= gain;
+        }
+        void reset() {
+            gain = 1.0f;
+        }
+    };
+    MasterLimiter slotLimiters[NUM_MIXER_SLOTS];
+    bool slotLimitersInit = false;
+
+    // --- Live Sample Preview Voice ---
+    struct PreviewSampleState {
+        std::vector<float> samples;
+        int numChannels = 1;
+        double sampleRate = 44100.0;
+        std::atomic<double> playPos{-1.0}; // -1.0 means idle/stopped
+    };
+    PreviewSampleState previewSample;
+    std::mutex previewSampleMutex;
 };

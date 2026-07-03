@@ -53,50 +53,104 @@ static const char* keyToNoteName(int key) {
 
 void renderTheme() {
     ImGuiStyle& style = ImGui::GetStyle();
-    style.WindowRounding = 4.0f;
-    style.FrameRounding = 3.0f;
-    style.GrabRounding = 3.0f;
-    style.ScrollbarRounding = 3.0f;
+    
+    // Layout and Padding Adjustments for Modern Look
+    style.WindowRounding = 6.0f;
+    style.ChildRounding = 6.0f;
+    style.FrameRounding = 4.0f;
+    style.PopupRounding = 6.0f;
+    style.ScrollbarRounding = 12.0f;
+    style.GrabRounding = 4.0f;
+    style.TabRounding = 4.0f;
+    
     style.WindowBorderSize = 1.0f;
+    style.ChildBorderSize = 0.0f;
     style.FrameBorderSize = 0.0f;
-    style.WindowPadding = ImVec2(6, 6);
-    style.FramePadding = ImVec2(4, 3);
-    style.ItemSpacing = ImVec2(6, 4);
-    style.ScrollbarSize = 12.0f;
+    style.PopupBorderSize = 1.0f;
+    style.TabBorderSize = 0.0f;
+    
+    style.WindowPadding = ImVec2(10, 10);
+    style.FramePadding = ImVec2(8, 5);
+    style.ItemSpacing = ImVec2(8, 6);
+    style.ItemInnerSpacing = ImVec2(6, 6);
+    style.TouchExtraPadding = ImVec2(0, 0);
+    style.IndentSpacing = 20.0f;
+    style.ScrollbarSize = 13.0f;
+    style.GrabMinSize = 10.0f;
+    
+    // Premium Dark Theme Color Palette
     ImVec4* colors = style.Colors;
-    colors[ImGuiCol_Text] = ImVec4(0.86f, 0.86f, 0.86f, 1.00f);
-    colors[ImGuiCol_TextDisabled] = ImVec4(0.55f, 0.55f, 0.55f, 1.00f);
-    colors[ImGuiCol_WindowBg] = ImVec4(0.12f, 0.12f, 0.12f, 1.00f);
-    colors[ImGuiCol_ChildBg] = ImVec4(0.15f, 0.15f, 0.15f, 1.00f);
-    colors[ImGuiCol_PopupBg] = ImVec4(0.10f, 0.10f, 0.10f, 0.94f);
-    colors[ImGuiCol_Border] = ImVec4(0.30f, 0.30f, 0.30f, 0.50f);
-    colors[ImGuiCol_FrameBg] = ImVec4(0.20f, 0.20f, 0.20f, 1.00f);
-    colors[ImGuiCol_FrameBgHovered] = ImVec4(0.25f, 0.25f, 0.25f, 1.00f);
-    colors[ImGuiCol_FrameBgActive] = ImVec4(0.30f, 0.30f, 0.30f, 1.00f);
-    colors[ImGuiCol_TitleBg] = ImVec4(0.08f, 0.08f, 0.08f, 1.00f);
-    colors[ImGuiCol_TitleBgActive] = ImVec4(0.12f, 0.12f, 0.12f, 1.00f);
-    colors[ImGuiCol_TitleBgCollapsed] = ImVec4(0.08f, 0.08f, 0.08f, 0.80f);
-    colors[ImGuiCol_MenuBarBg] = ImVec4(0.10f, 0.10f, 0.10f, 1.00f);
-    colors[ImGuiCol_ScrollbarBg] = ImVec4(0.08f, 0.08f, 0.08f, 1.00f);
-    colors[ImGuiCol_ScrollbarGrab] = ImVec4(0.30f, 0.30f, 0.30f, 1.00f);
-    colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.40f, 0.40f, 0.40f, 1.00f);
-    colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0.50f, 0.50f, 0.50f, 1.00f);
-    colors[ImGuiCol_Button] = ImVec4(0.25f, 0.25f, 0.25f, 1.00f);
-    colors[ImGuiCol_ButtonHovered] = ImVec4(0.35f, 0.35f, 0.35f, 1.00f);
-    colors[ImGuiCol_ButtonActive] = ImVec4(0.40f, 0.40f, 0.40f, 1.00f);
-    colors[ImGuiCol_Header] = ImVec4(0.25f, 0.25f, 0.25f, 0.90f);
-    colors[ImGuiCol_HeaderHovered] = ImVec4(0.35f, 0.35f, 0.35f, 0.90f);
-    colors[ImGuiCol_HeaderActive] = ImVec4(0.40f, 0.40f, 0.40f, 0.90f);
-    colors[ImGuiCol_Separator] = ImVec4(0.30f, 0.30f, 0.30f, 1.00f);
-    colors[ImGuiCol_SliderGrab] = ImVec4(1.00f, 0.67f, 0.00f, 1.00f);
-    colors[ImGuiCol_SliderGrabActive] = ImVec4(1.00f, 0.78f, 0.20f, 1.00f);
-    colors[ImGuiCol_PlotLines] = ImVec4(1.00f, 0.67f, 0.00f, 1.00f);
-    colors[ImGuiCol_CheckMark] = ImVec4(1.00f, 0.67f, 0.00f, 1.00f);
-    colors[ImGuiCol_Tab] = ImVec4(0.15f, 0.15f, 0.15f, 1.00f);
-    colors[ImGuiCol_TabHovered] = ImVec4(0.25f, 0.25f, 0.25f, 1.00f);
-    colors[ImGuiCol_TabActive] = ImVec4(0.20f, 0.20f, 0.20f, 1.00f);
-    colors[ImGuiCol_TabUnfocused] = ImVec4(0.12f, 0.12f, 0.12f, 1.00f);
-    colors[ImGuiCol_TabUnfocusedActive] = ImVec4(0.15f, 0.15f, 0.15f, 1.00f);
+    
+    // Core Backgrounds
+    colors[ImGuiCol_WindowBg]             = ImVec4(0.09f, 0.09f, 0.11f, 1.00f); // Dark Charcoal/Zinc
+    colors[ImGuiCol_ChildBg]              = ImVec4(0.12f, 0.12f, 0.14f, 1.00f); // Slightly lighter child panels
+    colors[ImGuiCol_PopupBg]              = ImVec4(0.09f, 0.09f, 0.11f, 0.98f);
+    colors[ImGuiCol_MenuBarBg]            = ImVec4(0.07f, 0.07f, 0.08f, 1.00f); // Darkest header background
+    
+    // Borders
+    colors[ImGuiCol_Border]               = ImVec4(0.22f, 0.22f, 0.24f, 0.60f); // Soft edge contrast
+    colors[ImGuiCol_BorderShadow]         = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
+    
+    // Text
+    colors[ImGuiCol_Text]                 = ImVec4(0.95f, 0.96f, 0.98f, 1.00f); // Clean off-white
+    colors[ImGuiCol_TextDisabled]         = ImVec4(0.50f, 0.51f, 0.55f, 1.00f); // Muted secondary text
+    
+    // Frames
+    colors[ImGuiCol_FrameBg]              = ImVec4(0.16f, 0.16f, 0.18f, 1.00f);
+    colors[ImGuiCol_FrameBgHovered]       = ImVec4(0.22f, 0.22f, 0.24f, 1.00f);
+    colors[ImGuiCol_FrameBgActive]        = ImVec4(0.26f, 0.26f, 0.29f, 1.00f);
+    
+    // Headers / Selection tabs
+    colors[ImGuiCol_TitleBg]              = ImVec4(0.07f, 0.07f, 0.08f, 1.00f);
+    colors[ImGuiCol_TitleBgActive]        = ImVec4(0.09f, 0.09f, 0.11f, 1.00f);
+    colors[ImGuiCol_TitleBgCollapsed]     = ImVec4(0.07f, 0.07f, 0.08f, 0.75f);
+    
+    // Accent colors (Premium Gold/Amber synth aesthetic)
+    ImVec4 accentColor                    = ImVec4(1.00f, 0.55f, 0.00f, 1.00f); // Warm Amber
+    ImVec4 accentHovered                  = ImVec4(1.00f, 0.65f, 0.15f, 1.00f);
+    ImVec4 accentActive                   = ImVec4(1.00f, 0.75f, 0.30f, 1.00f);
+    
+    // Buttons
+    colors[ImGuiCol_Button]               = ImVec4(0.20f, 0.20f, 0.23f, 1.00f);
+    colors[ImGuiCol_ButtonHovered]        = ImVec4(0.28f, 0.28f, 0.32f, 1.00f);
+    colors[ImGuiCol_ButtonActive]         = ImVec4(0.35f, 0.35f, 0.40f, 1.00f);
+    
+    // Sliders & Grabs
+    colors[ImGuiCol_SliderGrab]           = accentColor;
+    colors[ImGuiCol_SliderGrabActive]     = accentActive;
+    colors[ImGuiCol_CheckMark]            = accentColor;
+    
+    // Tabs (Modern minimal tabs)
+    colors[ImGuiCol_Tab]                  = ImVec4(0.12f, 0.12f, 0.14f, 1.00f);
+    colors[ImGuiCol_TabHovered]           = ImVec4(0.20f, 0.20f, 0.23f, 1.00f);
+    colors[ImGuiCol_TabActive]            = ImVec4(0.16f, 0.16f, 0.18f, 1.00f);
+    colors[ImGuiCol_TabUnfocused]         = ImVec4(0.09f, 0.09f, 0.11f, 1.00f);
+    colors[ImGuiCol_TabUnfocusedActive]   = ImVec4(0.12f, 0.12f, 0.14f, 1.00f);
+    
+    // Headings, Selectables, Collapsing Headers
+    colors[ImGuiCol_Header]               = ImVec4(0.16f, 0.16f, 0.18f, 1.00f);
+    colors[ImGuiCol_HeaderHovered]        = ImVec4(0.24f, 0.24f, 0.27f, 1.00f);
+    colors[ImGuiCol_HeaderActive]         = ImVec4(0.28f, 0.28f, 0.32f, 1.00f);
+    
+    // Separators
+    colors[ImGuiCol_Separator]            = ImVec4(0.16f, 0.16f, 0.18f, 1.00f);
+    colors[ImGuiCol_SeparatorHovered]     = accentHovered;
+    colors[ImGuiCol_SeparatorActive]      = accentActive;
+    
+    // Scrollbars
+    colors[ImGuiCol_ScrollbarBg]          = ImVec4(0.07f, 0.07f, 0.08f, 0.60f);
+    colors[ImGuiCol_ScrollbarGrab]        = ImVec4(0.24f, 0.24f, 0.27f, 1.00f);
+    colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.30f, 0.30f, 0.34f, 1.00f);
+    colors[ImGuiCol_ScrollbarGrabActive]  = ImVec4(0.36f, 0.36f, 0.40f, 1.00f);
+    
+    // Graph Plots & Selection
+    colors[ImGuiCol_PlotLines]            = accentColor;
+    colors[ImGuiCol_PlotLinesHovered]     = accentHovered;
+    colors[ImGuiCol_PlotHistogram]        = accentColor;
+    colors[ImGuiCol_PlotHistogramHovered] = accentHovered;
+    colors[ImGuiCol_TextSelectedBg]       = ImVec4(1.00f, 0.55f, 0.00f, 0.25f);
+    colors[ImGuiCol_DragDropTarget]       = ImVec4(1.00f, 0.55f, 0.00f, 0.90f);
+    colors[ImGuiCol_NavHighlight]         = ImVec4(1.00f, 0.55f, 0.00f, 0.80f);
 }
 
 void setStatus(AppState& state, const char* fmt, ...) {
@@ -130,6 +184,47 @@ void redo(AppState& state) {
     state.redoStack.pop_back();
     state.project.modified = true;
     if (state.engine) state.engine->stopPlayback();
+}
+
+void toggleStep(AppState& state, int channelIdx, int stepIndex) {
+    // Find the pattern that belongs to this channel
+    int patIdx = -1;
+    for (int p = 0; p < (int)state.project.patterns.size(); p++) {
+        if (state.project.patterns[p].channelIndex == channelIdx) {
+            patIdx = p;
+            break;
+        }
+    }
+    if (patIdx < 0) return;
+    auto& pat = state.project.patterns[patIdx];
+    int ppq = state.project.ppq;
+    int stepTicks = ppq / 4; // 16th note
+    int tickStart = stepIndex * stepTicks;
+    int noteKey = state.stepSequencerKey;
+
+    // Check if a note already exists at this step
+    int existingIdx = -1;
+    for (int n = 0; n < (int)pat.notes.size(); n++) {
+        if (pat.notes[n].start == tickStart && pat.notes[n].key == noteKey) {
+            existingIdx = n;
+            break;
+        }
+    }
+
+    pushUndo(state);
+    if (existingIdx >= 0) {
+        // Remove the note (toggle off)
+        pat.notes.erase(pat.notes.begin() + existingIdx);
+    } else {
+        // Add a new note (toggle on)
+        Note note;
+        note.start = tickStart;
+        note.length = stepTicks;
+        note.key = noteKey;
+        note.velocity = 100;
+        pat.notes.push_back(note);
+    }
+    state.project.modified = true;
 }
 
 bool appInit(AppState& state, AudioEngine* engine) {
@@ -269,6 +364,36 @@ bool appLoadProject(AppState& state, const char* path) {
         state.engine->stopPlayback();
         state.undoStack.clear();
         state.redoStack.clear();
+        
+        // Reload all SoundFonts and Sampler samples into the engine
+        if (state.engine) {
+            state.engine->clearSamples();
+            state.engine->lockAudio();
+            state.engine->unloadSFont();
+            
+            // 1. Reload Sampler samples and map their indices
+            for (auto& ch : state.project.channels) {
+                if (ch.isSampler && !ch.samplePath.empty()) {
+                    ch.sampleIndex = state.engine->loadSample(ch.samplePath);
+                } else {
+                    ch.sampleIndex = -1;
+                }
+            }
+            
+            // 2. Reload the active SoundFont if there is one
+            for (size_t i = 0; i < state.project.channels.size(); i++) {
+                auto& ch = state.project.channels[i];
+                if (ch.useSF2 && !ch.sf2Path.empty()) {
+                    int sfontId = state.engine->loadSFont(ch.sf2Path);
+                    if (sfontId >= 0) {
+                        state.engine->selectSFontPreset(sfontId, 0, ch.sf2Preset, (int)i);
+                    }
+                    break; // AudioEngine supports a single global SoundFont
+                }
+            }
+            state.engine->unlockAudio();
+        }
+        
         setStatus(state, "Loaded project: %s", path);
     } else {
         setStatus(state, "Failed to load project!");
@@ -464,6 +589,29 @@ void renderTransportBar(AppState& state) {
     }
     ImGui::SetItemTooltip("Toggle loop");
     ImGui::SameLine();
+
+    // --- Metronome Button ---
+    bool metro = state.transport.metronomeEnabled.load();
+    ImGui::PushStyleColor(ImGuiCol_Text, metro ? ImVec4(1.0f, 0.55f, 0.0f, 1.0f) : ImVec4(0.5f, 0.5f, 0.5f, 1.0f));
+    if (ImGui::Button("MET", ImVec2(40, 24))) {
+        state.transport.metronomeEnabled.store(!metro);
+    }
+    ImGui::PopStyleColor();
+    ImGui::SetItemTooltip("Toggle Metronome Click");
+    ImGui::SameLine();
+
+    // --- BPM control ---
+    ImGui::PushItemWidth(60);
+    float bpm = state.project.bpm;
+    if (ImGui::DragFloat("##bpm", &bpm, 0.5f, 20.0f, 300.0f, "%.0f BPM")) {
+        state.project.bpm = std::clamp(bpm, 20.0f, 300.0f);
+        if (state.engine) state.engine->setBPM(state.project.bpm);
+        state.project.modified = true;
+    }
+    ImGui::PopItemWidth();
+    ImGui::SetItemTooltip("Tempo (BPM)");
+    ImGui::SameLine();
+
     int ppq = state.project.ppq;
     int playHead = state.transport.playHead.load();
     int bars = playHead / (ppq * state.project.beatsPerBar);
@@ -473,7 +621,7 @@ void renderTransportBar(AppState& state) {
     snprintf(timeStr, sizeof(timeStr), "%d.%d.%03d", bars + 1, beats + 1, ticks);
     ImGui::Text("%s", timeStr);
     ImGui::SameLine();
-    ImGui::Text("  Pattern: "); ImGui::SameLine();
+    ImGui::Text("  Pat:"); ImGui::SameLine();
     if (state.project.selectedPattern >= 0 &&
         state.project.selectedPattern < (int)state.project.patterns.size()) {
         ImGui::PushItemWidth(120);
@@ -490,6 +638,11 @@ void renderTransportBar(AppState& state) {
         }
         ImGui::PopItemWidth();
         ImGui::SameLine();
+        if (ImGui::SmallButton("+##addPat")) {
+            addPattern(state);
+        }
+        ImGui::SetItemTooltip("Add new pattern");
+        ImGui::SameLine();
         ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(200,80,80,255));
         if (ImGui::SmallButton("X##delPat")) {
             pushUndo(state);
@@ -501,7 +654,12 @@ void renderTransportBar(AppState& state) {
         ImGui::PopStyleColor();
         ImGui::SetItemTooltip("Delete pattern");
     }
-    ImGui::SetItemTooltip("Select pattern");
+    ImGui::SameLine();
+    if (ImGui::ArrowButton("next", ImGuiDir_Right)) {
+        int cur = state.project.selectedPattern;
+        if (cur < (int)state.project.patterns.size() - 1) state.project.selectedPattern = cur + 1;
+    }
+    ImGui::SetItemTooltip("Next pattern");
 
     if (state.statusTimer > 0 && state.statusMessage[0]) {
         ImGui::SameLine();
@@ -533,35 +691,92 @@ void renderChannelRack(AppState& state) {
     }
 
     ImGui::Separator();
-    float totalHeight = 0;
+
+    // --- Step sequencer constants ---
+    const int NUM_STEPS = 16;
+    const float stepBtnSize = 22.0f;
+    const float channelNameW = 130.0f;
+    int ppq = state.project.ppq;
+    int stepTicks = ppq / 4;  // 16th note
+
+    // Step sequencer colors (FL Studio style: alternating groups of 4)
+    const ImU32 COL_STEP_OFF_A = IM_COL32(70, 50, 40, 255);
+    const ImU32 COL_STEP_OFF_B = IM_COL32(55, 55, 60, 255);
+    const ImU32 COL_STEP_ON    = IM_COL32(255, 160, 30, 255);
+    const ImU32 COL_STEP_ON_GLOW = IM_COL32(255, 200, 80, 255);
+    const ImU32 COL_STEP_HOVER = IM_COL32(100, 90, 70, 255);
+
     int chanToRemove = -1;
+
     for (int c = 0; c < (int)channels.size(); c++) {
         auto& ch = channels[c];
         ImGui::PushID(c);
-        ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.18f,0.18f,0.20f,0.8f));
-        ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(0.22f,0.22f,0.25f,0.8f));
         bool selected = (c == state.project.selectedChannel);
-        if (ImGui::Selectable("##ch", selected, ImGuiSelectableFlags_None, ImVec2(ImGui::GetContentRegionAvail().x, 0))) {
+
+        // --- Channel name button (selectable) ---
+        ImGui::PushStyleColor(ImGuiCol_Button, selected ? ImVec4(0.25f,0.20f,0.12f,1) : ImVec4(0.18f,0.18f,0.20f,1));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.30f,0.25f,0.15f,1));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.35f,0.28f,0.18f,1));
+        const char* icon = ch.useSF2 ? "[F] " : (ch.isSampler ? "[S] " : "[~] ");
+        char labelBuf[128];
+        snprintf(labelBuf, sizeof(labelBuf), "%s%s", icon, ch.name.c_str());
+        if (ImGui::Button(labelBuf, ImVec2(channelNameW, stepBtnSize))) {
             state.project.selectedChannel = c;
         }
-        ImGui::PopStyleColor(2);
-        bool hovered = ImGui::IsItemHovered();
-        if (hovered && ImGui::IsMouseDoubleClicked(0)) {
+        ImGui::PopStyleColor(3);
+        if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0)) {
             state.renameChannelIndex = c;
         }
+        ImGui::SetItemTooltip("Select channel (double-click to rename)");
+        ImGui::SameLine();
 
-        float lineH = ImGui::GetTextLineHeight();
-        ImVec2 pos = ImGui::GetItemRectMin();
-        const char* icon = ch.useSF2 ? "F" : (ch.isSampler ? "S" : "~");
-        ImU32 iconCol = ch.useSF2 ? IM_COL32(180,255,100,255) : (ch.isSampler ? IM_COL32(100,200,255,255) : IM_COL32(255,200,100,255));
-        ImGui::GetWindowDrawList()->AddText(
-            ImVec2(pos.x + 4, pos.y + 1),
-            iconCol, icon);
+        // --- 16-step sequencer grid ---
+        int patIdx = -1;
+        for (int p = 0; p < (int)state.project.patterns.size(); p++) {
+            if (state.project.patterns[p].channelIndex == c) {
+                patIdx = p;
+                break;
+            }
+        }
 
-        ImGui::SameLine(); ImGui::SetCursorPosX(pos.x + 20);
-        ImGui::Text("%s", ch.name.c_str());
-        ImGui::SameLine(); ImGui::SetCursorPosX(pos.x + ImGui::GetContentRegionAvail().x - 130);
-        ImGui::PushItemWidth(40);
+        for (int s = 0; s < NUM_STEPS; s++) {
+            if (s > 0) ImGui::SameLine(0, 1);
+            ImGui::PushID(1000 + s);
+
+            bool stepOn = false;
+            if (patIdx >= 0) {
+                int tickStart = s * stepTicks;
+                auto& pat = state.project.patterns[patIdx];
+                for (auto& note : pat.notes) {
+                    if (note.start == tickStart && note.key == state.stepSequencerKey) {
+                        stepOn = true;
+                        break;
+                    }
+                }
+            }
+
+            bool groupA = ((s / 4) % 2 == 0);
+            ImU32 offCol = groupA ? COL_STEP_OFF_A : COL_STEP_OFF_B;
+
+            ImGui::PushStyleColor(ImGuiCol_Button, stepOn ? ImGui::ColorConvertU32ToFloat4(COL_STEP_ON) : ImGui::ColorConvertU32ToFloat4(offCol));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, stepOn ? ImGui::ColorConvertU32ToFloat4(COL_STEP_ON_GLOW) : ImGui::ColorConvertU32ToFloat4(COL_STEP_HOVER));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImGui::ColorConvertU32ToFloat4(COL_STEP_ON_GLOW));
+            ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 2.0f);
+
+            char stepLabel[8];
+            snprintf(stepLabel, sizeof(stepLabel), "##s%d", s);
+            if (ImGui::Button(stepLabel, ImVec2(stepBtnSize, stepBtnSize))) {
+                toggleStep(state, c, s);
+            }
+
+            ImGui::PopStyleVar();
+            ImGui::PopStyleColor(3);
+            ImGui::PopID();
+        }
+
+        ImGui::SameLine(0, 8);
+
+        // --- Channel controls ---
         ImGui::PushStyleColor(ImGuiCol_Text, ch.muted ? COL_MUTED : IM_COL32(180,180,180,255));
         if (ImGui::SmallButton("M")) {
             pushUndo(state);
@@ -580,15 +795,14 @@ void renderChannelRack(AppState& state) {
         ImGui::PopStyleColor();
         ImGui::SetItemTooltip("Solo / Unsolo");
         ImGui::SameLine();
+        ImGui::PushItemWidth(42);
         float vol = ch.volume;
-        ImGui::PushItemWidth(50);
         if (ImGui::DragFloat("##vol", &vol, 0.01f, 0.0f, 1.5f, "%.2f")) {
             ch.volume = std::clamp(vol, 0.0f, 1.5f);
             state.project.modified = true;
         }
+        ImGui::PopItemWidth();
         ImGui::SetItemTooltip("Channel volume");
-        ImGui::PopItemWidth();
-        ImGui::PopItemWidth();
         ImGui::SameLine();
         ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(200,80,80,255));
         if (ImGui::SmallButton("X")) {
@@ -596,7 +810,7 @@ void renderChannelRack(AppState& state) {
         }
         ImGui::PopStyleColor();
         ImGui::SetItemTooltip("Delete channel");
-        totalHeight += lineH + 4;
+
         ImGui::PopID();
     }
 
@@ -648,24 +862,58 @@ void renderChannelRack(AppState& state) {
         if (ch.useSF2) {
             ImGui::Text("SF2: %s", ch.sf2Path.empty() ? "(none)" : ch.sf2Path.c_str());
             if (!ch.sf2Path.empty()) {
-                ImGui::PushItemWidth(60);
-                int preset = ch.sf2Preset;
-                if (ImGui::DragInt("Preset", &preset, 1, 0, 127)) {
-                    ch.sf2Preset = std::clamp(preset, 0, 127);
-                    state.project.modified = true;
-                    if (state.engine && state.engine->fluidSfontId >= 0) {
-                        state.engine->lockAudio();
-                        if (!state.engine->selectSFontPreset(state.engine->fluidSfontId, 0, ch.sf2Preset, selCh)) {
-                            for (int p = 0; p < 128; p++) {
-                                if (state.engine->selectSFontPreset(state.engine->fluidSfontId, 0, p, selCh)) {
-                                    ch.sf2Preset = p; break;
-                                }
+                if (state.engine && state.engine->fluidSfontId >= 0) {
+                    std::vector<AudioEngine::SoundFontPreset> presets = state.engine->getSoundFontPresets(state.engine->fluidSfontId);
+                    if (!presets.empty()) {
+                        std::string currentPresetName = "Select Preset...";
+                        for (const auto& p : presets) {
+                            if (p.preset == ch.sf2Preset) {
+                                currentPresetName = p.name + " (" + std::to_string(p.preset) + ")";
+                                break;
                             }
                         }
-                        state.engine->unlockAudio();
+                        
+                        ImGui::PushItemWidth(180.0f);
+                        if (ImGui::BeginCombo("Preset", currentPresetName.c_str())) {
+                            for (const auto& p : presets) {
+                                bool isSelected = (p.preset == ch.sf2Preset);
+                                std::string label = p.name + " (" + std::to_string(p.preset) + ")";
+                                if (ImGui::Selectable(label.c_str(), isSelected)) {
+                                    pushUndo(state);
+                                    ch.sf2Preset = p.preset;
+                                    state.project.modified = true;
+                                    state.engine->lockAudio();
+                                    state.engine->selectSFontPreset(state.engine->fluidSfontId, p.bank, p.preset, selCh);
+                                    state.engine->unlockAudio();
+                                }
+                                if (isSelected) {
+                                    ImGui::SetItemDefaultFocus();
+                                }
+                            }
+                            ImGui::EndCombo();
+                        }
+                        ImGui::PopItemWidth();
+                    } else {
+                        ImGui::PushItemWidth(60);
+                        int preset = ch.sf2Preset;
+                        if (ImGui::DragInt("Preset", &preset, 1, 0, 127)) {
+                            ch.sf2Preset = std::clamp(preset, 0, 127);
+                            state.project.modified = true;
+                            state.engine->lockAudio();
+                            state.engine->selectSFontPreset(state.engine->fluidSfontId, 0, ch.sf2Preset, selCh);
+                            state.engine->unlockAudio();
+                        }
+                        ImGui::PopItemWidth();
                     }
+                } else {
+                    ImGui::PushItemWidth(60);
+                    int preset = ch.sf2Preset;
+                    if (ImGui::DragInt("Preset", &preset, 1, 0, 127)) {
+                        ch.sf2Preset = std::clamp(preset, 0, 127);
+                        state.project.modified = true;
+                    }
+                    ImGui::PopItemWidth();
                 }
-                ImGui::PopItemWidth();
             }
         }
     }
@@ -737,7 +985,7 @@ void renderPianoRoll(AppState& state) {
     ImVec2 childPos = ImGui::GetCursorScreenPos();
     ImVec2 childSize = ImGui::GetContentRegionAvail();
     float canvasW = std::max(childSize.x, keyWidth + totalTicks * state.pianoRollZoomX / (float)ppq + 100);
-    float canvasH = std::max(childSize.y, numKeys * rowHeight + 20);
+    float canvasH = std::max(childSize.y, numKeys * rowHeight + 120);
     dl->AddRectFilled(childPos, ImVec2(childPos.x + canvasW, childPos.y + canvasH), COL_BG);
     float zoomX = state.pianoRollZoomX;
 
@@ -801,6 +1049,37 @@ void renderPianoRoll(AppState& state) {
     dl->AddLine(ImVec2(phx, childPos.y), ImVec2(phx, childPos.y + canvasH),
                 IM_COL32(255,50,50,200), 2.0f);
 
+    // --- Velocity Editor Lane Drawing ---
+    float laneTop = childPos.y + numKeys * rowHeight + 20;
+    float laneHeight = 80.0f;
+    float laneBottom = laneTop + laneHeight;
+    
+    // Draw lane boundary separator
+    dl->AddLine(ImVec2(childPos.x, laneTop), ImVec2(childPos.x + canvasW, laneTop), IM_COL32(80,80,80,255), 2.0f);
+    dl->AddText(ImVec2(childPos.x + 4, laneTop + 4), IM_COL32(160,160,160,255), "Note Velocity");
+    
+    // Draw velocity bars for each note
+    for (int ni = 0; ni < (int)pattern.notes.size(); ni++) {
+        auto& note = pattern.notes[ni];
+        float x = childPos.x + keyWidth + note.start * zoomX / (float)ppq;
+        float w = std::max(2.0f, note.length * zoomX / (float)ppq);
+        
+        // Center the bar horizontally relative to the note block
+        float barX = x + w * 0.5f;
+        float barH = (note.velocity / 127.0f) * (laneHeight - 20.0f);
+        float barY = laneBottom - 10.0f - barH;
+        
+        bool editing = (ni == state.pianoRollEditingNote);
+        
+        // Draw the vertical line
+        dl->AddLine(ImVec2(barX, laneBottom - 10.0f), ImVec2(barX, barY), 
+                    editing ? COL_NOTE_ACTIVE : IM_COL32(180, 100, 0, 200), 2.0f);
+        
+        // Draw a handle circle at the top of the bar
+        dl->AddCircleFilled(ImVec2(barX, barY), 4.0f, 
+                            editing ? COL_NOTE_ACTIVE : IM_COL32(255, 140, 0, 255));
+    }
+
     ImGui::InvisibleButton("##pianoRollClick", ImVec2(canvasW, canvasH));
     bool isHovered = ImGui::IsItemHovered();
     if (isHovered) {
@@ -808,13 +1087,48 @@ void renderPianoRoll(AppState& state) {
         float relX = mousePos.x - childPos.x - keyWidth;
         float relY = mousePos.y - childPos.y;
         if (relX >= 0 && relY >= 0) {
-            int tick = (int)(relX * ppq / zoomX);
-            int keyIdx = (int)(relY / rowHeight);
-            int key = startKey + (numKeys - 1 - keyIdx);
-            if (tick >= 0 && tick < totalTicks && key >= 0 && key < 128) {
-                bool ctrl = ImGui::GetIO().KeyCtrl;
-                bool shift = ImGui::GetIO().KeyShift;
-                if (ImGui::IsMouseClicked(0) && !state.pianoRollDragging && !state.pianoRollResizing) {
+            float laneTopRel = numKeys * rowHeight + 20;
+            float laneBottomRel = laneTopRel + 80.0f;
+            
+            if (relY >= laneTopRel && relY <= laneBottomRel) {
+                // Velocity lane interaction
+                if (ImGui::IsMouseDown(0)) {
+                    int closestNote = -1;
+                    float minDist = 15.0f; // tolerance of 15 pixels
+                    for (int ni = 0; ni < (int)pattern.notes.size(); ni++) {
+                        auto& note = pattern.notes[ni];
+                        float nx = childPos.x + keyWidth + note.start * zoomX / (float)ppq;
+                        float nw = std::max(2.0f, note.length * zoomX / (float)ppq);
+                        float barX = nx + nw * 0.5f;
+                        float d = std::abs(mousePos.x - barX);
+                        if (d < minDist) {
+                            minDist = d;
+                            closestNote = ni;
+                        }
+                    }
+                    if (closestNote >= 0) {
+                        float pct = (laneBottomRel - 10.0f - relY) / 60.0f; // 60px active range
+                        int vel = std::clamp((int)(pct * 127.0f), 0, 127);
+                        if (pattern.notes[closestNote].velocity != vel) {
+                            if (!state.pianoRollDragPushedUndo) {
+                                pushUndo(state);
+                                state.pianoRollDragPushedUndo = true;
+                            }
+                            pattern.notes[closestNote].velocity = vel;
+                            state.pianoRollEditingNote = closestNote;
+                            state.project.modified = true;
+                        }
+                    }
+                }
+            } else {
+                // Standard piano roll grid interaction
+                int tick = (int)(relX * ppq / zoomX);
+                int keyIdx = (int)(relY / rowHeight);
+                int key = startKey + (numKeys - 1 - keyIdx);
+                if (tick >= 0 && tick < totalTicks && key >= 0 && key < 128) {
+                    bool ctrl = ImGui::GetIO().KeyCtrl;
+                    bool shift = ImGui::GetIO().KeyShift;
+                    if (ImGui::IsMouseClicked(0) && !state.pianoRollDragging && !state.pianoRollResizing) {
                     if (ctrl) {
                         state.transport.playHead.store(tick);
                         if (state.engine) state.engine->stopPlayback();
@@ -836,12 +1150,14 @@ void renderPianoRoll(AppState& state) {
                                     state.pianoRollPreviewKey = n.key;
                                 }
                                 if (mousePos.x >= nx + nw - 6) {
-                                    state.pianoRollResizing = true;
-                                    state.pianoRollResizingNote = ni;
-                                    state.pianoRollDragStartX = mousePos.x;
-                                    pushUndo(state);
-                                    state.pianoRollDragPushedUndo = true;
-                                } else {
+                                     state.pianoRollResizing = true;
+                                     state.pianoRollResizingNote = ni;
+                                     state.pianoRollDragStartX = mousePos.x;
+                                     state.pianoRollDragStartLength = n.length;
+                                     state.pianoRollDragStartTick = n.start;
+                                     pushUndo(state);
+                                     state.pianoRollDragPushedUndo = true;
+                                 } else {
                                     state.pianoRollDragging = true;
                                     state.pianoRollDragNote = ni;
                                     state.pianoRollDragStartX = mousePos.x;
@@ -895,8 +1211,14 @@ void renderPianoRoll(AppState& state) {
                     state.pianoRollResizingNote < (int)pattern.notes.size()) {
                     auto& resizeNote = pattern.notes[state.pianoRollResizingNote];
                     int deltaTick = (int)((ImGui::GetMousePos().x - state.pianoRollDragStartX) * ppq / zoomX);
-                    resizeNote.length = std::max(ppq/8, resizeNote.length + deltaTick);
-                    state.pianoRollDragStartX = ImGui::GetMousePos().x;
+                    int newLength = std::max(ppq/8, state.pianoRollDragStartLength + deltaTick);
+                    if (state.pianoRollSnapEnabled) {
+                        int snapT = ppq / state.pianoRollSnap;
+                        int noteEnd = state.pianoRollDragStartTick + newLength;
+                        int snappedEnd = ((noteEnd + snapT/2) / snapT) * snapT;
+                        newLength = std::max(snapT, snappedEnd - state.pianoRollDragStartTick);
+                    }
+                    resizeNote.length = newLength;
                     state.project.modified = true;
                 }
 
@@ -907,6 +1229,7 @@ void renderPianoRoll(AppState& state) {
                 }
             }
         }
+    }
 
         float mouseX = ImGui::GetMousePos().x;
         float mouseY = ImGui::GetMousePos().y;
@@ -1383,6 +1706,105 @@ void renderMixer(AppState& state) {
         ImGui::PopStyleColor();
         ImGui::SetItemTooltip("Mute / Unmute");
 
+        // --- Delay Effect Controls ---
+        ImGui::Spacing();
+        ImGui::PushStyleColor(ImGuiCol_Text, slot.delayEnabled ? ImVec4(1.0f,0.7f,0.2f,1) : ImVec4(0.5f,0.5f,0.5f,1));
+        if (ImGui::SmallButton("DLY")) {
+            slot.delayEnabled = !slot.delayEnabled;
+            state.project.modified = true;
+        }
+        ImGui::PopStyleColor();
+        ImGui::SetItemTooltip("Enable / Disable Delay");
+
+        if (slot.delayEnabled) {
+            ImGui::SameLine();
+            ImGui::PushStyleColor(ImGuiCol_Text, slot.delayPingPong ? ImVec4(1.0f,0.7f,0.2f,1) : ImVec4(0.5f,0.5f,0.5f,1));
+            if (ImGui::SmallButton("P-P")) {
+                pushUndo(state);
+                slot.delayPingPong = !slot.delayPingPong;
+                state.project.modified = true;
+            }
+            ImGui::PopStyleColor();
+            ImGui::SetItemTooltip("Toggle Ping-Pong Delay (Crossed Feedback)");
+
+            ImGui::PushItemWidth(60);
+            float dt = slot.delayTime;
+            if (ImGui::DragFloat("##dlyTime", &dt, 0.01f, 0.01f, 2.0f, "%.2fs")) {
+                slot.delayTime = std::clamp(dt, 0.01f, 2.0f);
+                state.project.modified = true;
+            }
+            ImGui::SetItemTooltip("Delay Time (seconds)");
+
+            float fb = slot.delayFeedback;
+            if (ImGui::DragFloat("##dlyFB", &fb, 0.01f, 0.0f, 0.95f, "FB%.2f")) {
+                slot.delayFeedback = std::clamp(fb, 0.0f, 0.95f);
+                state.project.modified = true;
+            }
+            ImGui::SetItemTooltip("Delay Feedback");
+
+            float wet = slot.delayWet;
+            if (ImGui::DragFloat("##dlyWet", &wet, 0.01f, 0.0f, 1.0f, "W%.2f")) {
+                slot.delayWet = std::clamp(wet, 0.0f, 1.0f);
+                state.project.modified = true;
+            }
+            ImGui::SetItemTooltip("Delay Wet Mix");
+            ImGui::PopItemWidth();
+        }
+
+        // --- Filter Effect Controls ---
+        ImGui::Spacing();
+        ImGui::PushStyleColor(ImGuiCol_Text, slot.filterEnabled ? ImVec4(1.0f,0.7f,0.2f,1) : ImVec4(0.5f,0.5f,0.5f,1));
+        if (ImGui::SmallButton("FLT")) {
+            pushUndo(state);
+            slot.filterEnabled = !slot.filterEnabled;
+            state.project.modified = true;
+        }
+        ImGui::PopStyleColor();
+        ImGui::SetItemTooltip("Enable / Disable Filter");
+
+        if (slot.filterEnabled) {
+            ImGui::SameLine();
+            ImGui::PushStyleColor(ImGuiCol_Text, slot.filterIsHP ? ImVec4(1.0f,0.7f,0.2f,1) : ImVec4(0.5f,0.5f,0.5f,1));
+            if (ImGui::SmallButton(slot.filterIsHP ? "HP" : "LP")) {
+                pushUndo(state);
+                slot.filterIsHP = !slot.filterIsHP;
+                state.project.modified = true;
+            }
+            ImGui::PopStyleColor();
+            ImGui::SetItemTooltip("Toggle Low-Pass / High-Pass");
+
+            ImGui::PushItemWidth(60);
+            
+            // Logarithmic mapping for natural frequency sweep display (20 Hz - 20000 Hz)
+            float cutoffVal = slot.filterCutoff;
+            float freqHz = 20.0f * std::pow(1000.0f, cutoffVal);
+            if (ImGui::DragFloat("##fltCutoff", &freqHz, freqHz * 0.05f, 20.0f, 20000.0f, "%.0fHz")) {
+                slot.filterCutoff = std::log10(freqHz / 20.0f) / 3.0f;
+                slot.filterCutoff = std::clamp(slot.filterCutoff, 0.01f, 0.99f);
+                state.project.modified = true;
+            }
+            ImGui::SetItemTooltip("Filter Cutoff Frequency");
+
+            float res = slot.filterResonance;
+            if (ImGui::DragFloat("##fltRes", &res, 0.01f, 0.0f, 0.95f, "Q%.2f")) {
+                slot.filterResonance = std::clamp(res, 0.0f, 0.95f);
+                state.project.modified = true;
+            }
+            ImGui::SetItemTooltip("Filter Resonance");
+            ImGui::PopItemWidth();
+        }
+
+        // --- Limiter Control ---
+        ImGui::Spacing();
+        ImGui::PushStyleColor(ImGuiCol_Text, slot.limiterEnabled ? ImVec4(1.0f,0.7f,0.2f,1) : ImVec4(0.5f,0.5f,0.5f,1));
+        if (ImGui::SmallButton("LIM")) {
+            pushUndo(state);
+            slot.limiterEnabled = !slot.limiterEnabled;
+            state.project.modified = true;
+        }
+        ImGui::PopStyleColor();
+        ImGui::SetItemTooltip("Enable / Disable Brickwall Limiter");
+
         ImGui::PopID();
         ImGui::EndGroup();
         ImGui::SameLine();
@@ -1459,6 +1881,17 @@ void renderBrowser(AppState& state) {
         } else {
             if (ImGui::Selectable(label.c_str(), selected)) {
                 state.browserSelected = i;
+                bool isWav = false;
+                if (label.size() >= 4) {
+                    std::string ext = label.substr(label.size() - 4);
+                    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+                    if (ext == ".wav") isWav = true;
+                }
+                if (isWav && state.engine) {
+                    std::string base = normalizePath(state.browserPath);
+                    std::string fullPath = base + "/" + state.browserFiles[i];
+                    state.engine->playSamplePreview(fullPath);
+                }
             }
             if (ImGui::BeginDragDropSource()) {
                 std::string base = normalizePath(state.browserPath);

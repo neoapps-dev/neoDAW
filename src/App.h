@@ -27,6 +27,7 @@ struct AppState {
     int pianoRollDragStartTick = 0;
     int pianoRollResizingNote = -1;
     bool pianoRollResizing = false;
+    int pianoRollDragStartLength = 0;
     int pianoRollPreviewKey = -1;
     int playlistScrollX = 0;
     int playlistScrollY = 0;
@@ -63,6 +64,7 @@ struct AppState {
     int pianoRollScrollStartY = 0;
     int pianoRollScrollOrigX = 0;
     int pianoRollScrollOrigY = 0;
+    int stepSequencerKey = 60; // default note key for step sequencer (C5)
 };
 
 bool appInit(AppState& state, AudioEngine* engine);
@@ -92,3 +94,4 @@ void setStatus(AppState& state, const char* fmt, ...);
 void pushUndo(AppState& state);
 void undo(AppState& state);
 void redo(AppState& state);
+void toggleStep(AppState& state, int channelIdx, int stepIndex);
