@@ -58,13 +58,28 @@ inline void from_json(const json& j, Pattern& p) {
     j.at("channelIndex").get_to(p.channelIndex);
 }
 inline void to_json(json& j, const MixerSlot& m) {
-    j = json{{"name", m.name}, {"volume", m.volume}, {"pan", m.pan}, {"muted", m.muted}};
+    j = json{{"name", m.name}, {"volume", m.volume}, {"pan", m.pan}, {"muted", m.muted},
+             {"delayEnabled", m.delayEnabled}, {"delayPingPong", m.delayPingPong}, {"delayTime", m.delayTime},
+             {"delayFeedback", m.delayFeedback}, {"delayWet", m.delayWet},
+             {"filterEnabled", m.filterEnabled}, {"filterIsHP", m.filterIsHP},
+             {"filterCutoff", m.filterCutoff}, {"filterResonance", m.filterResonance},
+             {"limiterEnabled", m.limiterEnabled}};
 }
 inline void from_json(const json& j, MixerSlot& m) {
     j.at("name").get_to(m.name);
     j.at("volume").get_to(m.volume);
     j.at("pan").get_to(m.pan);
     j.at("muted").get_to(m.muted);
+    if (j.contains("delayEnabled")) j.at("delayEnabled").get_to(m.delayEnabled);
+    if (j.contains("delayPingPong")) j.at("delayPingPong").get_to(m.delayPingPong);
+    if (j.contains("delayTime")) j.at("delayTime").get_to(m.delayTime);
+    if (j.contains("delayFeedback")) j.at("delayFeedback").get_to(m.delayFeedback);
+    if (j.contains("delayWet")) j.at("delayWet").get_to(m.delayWet);
+    if (j.contains("filterEnabled")) j.at("filterEnabled").get_to(m.filterEnabled);
+    if (j.contains("filterIsHP")) j.at("filterIsHP").get_to(m.filterIsHP);
+    if (j.contains("filterCutoff")) j.at("filterCutoff").get_to(m.filterCutoff);
+    if (j.contains("filterResonance")) j.at("filterResonance").get_to(m.filterResonance);
+    if (j.contains("limiterEnabled")) j.at("limiterEnabled").get_to(m.limiterEnabled);
 }
 inline void to_json(json& j, const PlaylistClip& c) {
     j = json{{"track", c.track}, {"startTick", c.startTick},

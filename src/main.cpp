@@ -58,6 +58,18 @@ static void initImGui() {
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
     io.IniFilename = "neodaw.ini";
+#ifdef _WIN32
+    // Try to load a clean system vector font instead of the default retro pixel font
+    const char* fontPath = "C:\\Windows\\Fonts\\segoeui.ttf";
+    if (GetFileAttributesA(fontPath) != INVALID_FILE_ATTRIBUTES) {
+        io.Fonts->AddFontFromFileTTF(fontPath, 16.0f);
+    } else {
+        fontPath = "C:\\Windows\\Fonts\\arial.ttf";
+        if (GetFileAttributesA(fontPath) != INVALID_FILE_ATTRIBUTES) {
+            io.Fonts->AddFontFromFileTTF(fontPath, 16.0f);
+        }
+    }
+#endif
     renderTheme();
     ImGui_ImplSDL2_InitForOpenGL(gWindow, gGLContext);
     ImGui_ImplOpenGL3_Init("#version 330");

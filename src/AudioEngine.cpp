@@ -148,6 +148,17 @@ void AudioEngine::startPlayback() {
     activeNotes.clear();
     clipRenderStates.clear();
     playHead.store(0);
+    lastMetronomeBeat = -1;
+    metronomeClickSampleRemaining = 0;
+    previewSample.playPos.store(-1.0);
+    if (mixerFiltersInit) {
+        for (int i = 0; i < NUM_MIXER_SLOTS; i++)
+            mixerFilters[i].clear();
+    }
+    if (slotLimitersInit) {
+        for (int i = 0; i < NUM_MIXER_SLOTS; i++)
+            slotLimiters[i].reset();
+    }
     transport->state.store(TransportState::Playing);
 }
 
@@ -156,14 +167,36 @@ void AudioEngine::stopPlayback() {
     transport->state.store(TransportState::Stopped);
     playHead.store(0);
     playbackTime = 0.0;
+    lastMetronomeBeat = -1;
+    metronomeClickSampleRemaining = 0;
+    previewSample.playPos.store(-1.0);
     for (auto& s : synthPool) s.forceReset();
     activeNotes.clear();
     clipRenderStates.clear();
+    if (mixerFiltersInit) {
+        for (int i = 0; i < NUM_MIXER_SLOTS; i++)
+            mixerFilters[i].clear();
+    }
+    if (slotLimitersInit) {
+        for (int i = 0; i < NUM_MIXER_SLOTS; i++)
+            slotLimiters[i].reset();
+    }
 }
 
 void AudioEngine::pausePlayback() {
     if (!transport) return;
     TransportState cur = transport->state.load();
+    lastMetronomeBeat = -1;
+    metronomeClickSampleRemaining = 0;
+    previewSample.playPos.store(-1.0);
+    if (mixerFiltersInit) {
+        for (int i = 0; i < NUM_MIXER_SLOTS; i++)
+            mixerFilters[i].clear();
+    }
+    if (slotLimitersInit) {
+        for (int i = 0; i < NUM_MIXER_SLOTS; i++)
+            slotLimiters[i].reset();
+    }
     if (cur == TransportState::Playing) {
         transport->state.store(TransportState::Paused);
     } else {
@@ -179,9 +212,26 @@ void AudioEngine::pausePlayback() {
 int AudioEngine::loadSample(const std::string& path) {
     SampleData sd;
     if (!loadWavFile(path, sd)) return -1;
+    std::lock_guard<std::mutex> lock(audioMutex);
     int idx = (int)samples.size();
     samples.push_back(std::move(sd));
     return idx;
+}
+
+void AudioEngine::clearSamples() {
+    std::lock_guard<std::mutex> lock(audioMutex);
+    samples.clear();
+}
+
+void AudioEngine::playSamplePreview(const std::string& path) {
+    SampleData sd;
+    if (!loadWavFile(path, sd)) return;
+    
+    std::lock_guard<std::mutex> lock(previewSampleMutex);
+    previewSample.samples = std::move(sd.samples);
+    previewSample.numChannels = sd.numChannels;
+    previewSample.sampleRate = sd.sampleRate;
+    previewSample.playPos.store(0.0);
 }
 
 const SampleData* AudioEngine::getSample(int index) const {
@@ -232,6 +282,28 @@ void AudioEngine::unloadSFont() {
 bool AudioEngine::selectSFontPreset(int sfontId, int bank, int preset, int chan) {
     if (!fluidSynth) return false;
     return fluid_synth_program_select(fluidSynth, chan, sfontId, bank, preset) == 0;
+}
+
+std::vector<AudioEngine::SoundFontPreset> AudioEngine::getSoundFontPresets(int sfontId) {
+    std::vector<SoundFontPreset> list;
+    if (!fluidSynth || sfontId < 0) return list;
+    
+    lockAudio();
+    fluid_sfont_t* sfont = fluid_synth_get_sfont_by_id(fluidSynth, sfontId);
+    if (sfont) {
+        sfont->iteration_start(sfont);
+        fluid_preset_t preset;
+        std::memset(&preset, 0, sizeof(preset));
+        while (sfont->iteration_next(sfont, &preset)) {
+            SoundFontPreset info;
+            info.name = preset.get_name(&preset);
+            info.bank = preset.get_banknum(&preset);
+            info.preset = preset.get_num(&preset);
+            list.push_back(info);
+        }
+    }
+    unlockAudio();
+    return list;
 }
 
 bool AudioEngine::debugRenderToWav(const Project& proj, const Transport& trans, const char* path) {
@@ -703,6 +775,27 @@ void AudioEngine::render(float* output, unsigned int frameCount) {
 
     project->ensureMixerSlots();
 
+    // Lazy-init delay lines
+    if (!mixerDelaysInit) {
+        for (int i = 0; i < NUM_MIXER_SLOTS; i++)
+            mixerDelays[i].init(MAX_DELAY_SAMPLES);
+        mixerDelaysInit = true;
+    }
+
+    // Lazy-init filters
+    if (!mixerFiltersInit) {
+        for (int i = 0; i < NUM_MIXER_SLOTS; i++)
+            mixerFilters[i].clear();
+        mixerFiltersInit = true;
+    }
+
+    // Lazy-init limiters
+    if (!slotLimitersInit) {
+        for (int i = 0; i < NUM_MIXER_SLOTS; i++)
+            slotLimiters[i].reset();
+        slotLimitersInit = true;
+    }
+
     if (!hasPlaylist) {
         audioMutex.unlock();
         return;
@@ -902,11 +995,265 @@ void AudioEngine::render(float* output, unsigned int frameCount) {
             for (int f = 0; f < fluidSamples; f++)output[processedFrames * numChannels + f] += fluidBuf[f];
         }
 
-        for (int f = 0; f < chunkFrames * numChannels; f++) {
-            float s = output[processedFrames * numChannels + f] * mv;
-            if (s > 1.0f) s = 1.0f;
-            else if (s < -1.0f) s = -1.0f;
-            output[processedFrames * numChannels + f] = s;
+        // --- Per-frame stereo feedback delay on each mixer slot ---
+        if (numChannels >= 2) {
+            for (int f = 0; f < chunkFrames; f++) {
+                // Compute current tick for metronome trigger
+                int tickOffset = (int)(f * ticksPerFrame);
+                int currentFrameTick = currentTick + tickOffset;
+                
+                int currentBeat = currentFrameTick / ppq;
+                if (transport->metronomeEnabled.load() && currentBeat != lastMetronomeBeat) {
+                    lastMetronomeBeat = currentBeat;
+                    int beatsPerBar = project->beatsPerBar;
+                    metronomeClickFreq = ((currentBeat * ppq) % (ppq * beatsPerBar) == 0) ? 1200.0f : 800.0f;
+                    metronomeClickSampleRemaining = (int)(0.04f * sampleRate); // 40ms click
+                    metronomeClickPhase = 0.0f;
+                    metronomeClickPhaseStep = (float)(2.0 * 3.14159265358979323846 * metronomeClickFreq / sampleRate);
+                    metronomeClickDecayStep = 1.0f / metronomeClickSampleRemaining;
+                }
+                
+                float metronomeVal = 0.0f;
+                if (metronomeClickSampleRemaining > 0) {
+                    float amp = metronomeClickSampleRemaining * metronomeClickDecayStep;
+                    metronomeVal = sinf(metronomeClickPhase) * amp * 0.15f;
+                    metronomeClickPhase += metronomeClickPhaseStep;
+                    metronomeClickSampleRemaining--;
+                }
+
+                // Render preview sample if active (dry bypass)
+                float prevSampleValL = 0.0f;
+                float prevSampleValR = 0.0f;
+                {
+                    std::lock_guard<std::mutex> lock(previewSampleMutex);
+                    double playPosVal = previewSample.playPos.load();
+                    if (playPosVal >= 0.0) {
+                        int previewSize = (int)(previewSample.samples.size() / previewSample.numChannels);
+                        double ratio = previewSample.sampleRate / (double)sampleRate;
+                        
+                        double currentPos = playPosVal;
+                        size_t idx1 = (size_t)currentPos;
+                        size_t idx2 = idx1 + 1;
+                        if (idx2 >= (size_t)previewSize) idx2 = idx1;
+                        
+                        if (idx1 < (size_t)previewSize) {
+                            float t = (float)(currentPos - idx1);
+                            int chCount = previewSample.numChannels;
+                            
+                            float s1_L = previewSample.samples[idx1 * chCount];
+                            float s2_L = previewSample.samples[idx2 * chCount];
+                            prevSampleValL = (s1_L + t * (s2_L - s1_L)) * 0.6f;
+                            
+                            if (chCount > 1) {
+                                float s1_R = previewSample.samples[idx1 * chCount + 1];
+                                float s2_R = previewSample.samples[idx2 * chCount + 1];
+                                prevSampleValR = (s1_R + t * (s2_R - s1_R)) * 0.6f;
+                            } else {
+                                prevSampleValR = prevSampleValL;
+                            }
+                            
+                            playPosVal += ratio;
+                            if (playPosVal >= previewSize) {
+                                playPosVal = -1.0;
+                            }
+                            previewSample.playPos.store(playPosVal);
+                        } else {
+                            previewSample.playPos.store(-1.0);
+                        }
+                    }
+                }
+
+                int idx = (processedFrames + f) * numChannels;
+                float dryL = output[idx];
+                float dryR = output[idx + 1];
+                float wetL = 0.0f, wetR = 0.0f;
+
+                // Process insert slots (1 to 7) first for delay, filtering, and limiting
+                for (int mi = 1; mi < (int)project->mixer.size() && mi < NUM_MIXER_SLOTS; mi++) {
+                    auto& slot = project->mixer[mi];
+                    
+                    // Filter slot input if filter is enabled
+                    float slotSigL = dryL;
+                    float slotSigR = dryR;
+                    if (slot.filterEnabled) {
+                        float fc = std::clamp(slot.filterCutoff, 0.01f, 0.99f);
+                        float q = 1.0f - std::clamp(slot.filterResonance, 0.0f, 0.95f);
+                        float fCoeff = 2.0f * sinf(3.14159265f * fc * 0.5f);
+                        fCoeff = std::clamp(fCoeff, 0.01f, 0.99f);
+                        
+                        // Left
+                        float hpL = slotSigL - mixerFilters[mi].l1 - q * mixerFilters[mi].l2;
+                        float bpL = fCoeff * hpL + mixerFilters[mi].l1;
+                        float lpL = fCoeff * bpL + mixerFilters[mi].l2;
+                        mixerFilters[mi].l1 = bpL;
+                        mixerFilters[mi].l2 = lpL;
+                        
+                        // Right
+                        float hpR = slotSigR - mixerFilters[mi].r1 - q * mixerFilters[mi].r2;
+                        float bpR = fCoeff * hpR + mixerFilters[mi].r1;
+                        float lpR = fCoeff * bpR + mixerFilters[mi].r2;
+                        mixerFilters[mi].r1 = bpR;
+                        mixerFilters[mi].r2 = lpR;
+                        
+                        slotSigL = slot.filterIsHP ? hpL : lpL;
+                        slotSigR = slot.filterIsHP ? hpR : lpR;
+                    }
+                    
+                    // Limit insert slot if enabled
+                    if (slot.limiterEnabled) {
+                        slotLimiters[mi].process(slotSigL, slotSigR);
+                    }
+                    
+                    if (slot.delayEnabled) {
+                        int delaySamples = std::clamp((int)(slot.delayTime * sampleRate), 1, MAX_DELAY_SAMPLES - 1);
+                        float fb = std::clamp(slot.delayFeedback, 0.0f, 0.95f);
+                        float wet = std::clamp(slot.delayWet, 0.0f, 1.0f);
+                        float tapL, tapR;
+                        mixerDelays[mi].read(delaySamples, tapL, tapR);
+                        if (slot.delayPingPong) {
+                            mixerDelays[mi].write(slotSigL + tapR * fb, slotSigR + tapL * fb);
+                        } else {
+                            mixerDelays[mi].write(slotSigL + tapL * fb, slotSigR + tapR * fb);
+                        }
+                        wetL += tapL * wet;
+                        wetR += tapR * wet;
+                    }
+                }
+                
+                // Sum dry and delay outputs
+                float outL = (dryL + wetL) * mv;
+                float outR = (dryR + wetR) * mv;
+                
+                // Process Master slot (0) filter on the final mix
+                auto& masterSlot = project->mixer[0];
+                if (masterSlot.filterEnabled) {
+                    float fc = std::clamp(masterSlot.filterCutoff, 0.01f, 0.99f);
+                    float q = 1.0f - std::clamp(masterSlot.filterResonance, 0.0f, 0.95f);
+                    float fCoeff = 2.0f * sinf(3.14159265f * fc * 0.5f);
+                    fCoeff = std::clamp(fCoeff, 0.01f, 0.99f);
+                    
+                    // Left
+                    float hpL = outL - mixerFilters[0].l1 - q * mixerFilters[0].l2;
+                    float bpL = fCoeff * hpL + mixerFilters[0].l1;
+                    float lpL = fCoeff * bpL + mixerFilters[0].l2;
+                    mixerFilters[0].l1 = bpL;
+                    mixerFilters[0].l2 = lpL;
+                    
+                    // Right
+                    float hpR = outR - mixerFilters[0].r1 - q * mixerFilters[0].r2;
+                    float bpR = fCoeff * hpR + mixerFilters[0].r1;
+                    float lpR = fCoeff * bpR + mixerFilters[0].r2;
+                    mixerFilters[0].r1 = bpR;
+                    mixerFilters[0].r2 = lpR;
+                    
+                    outL = masterSlot.filterIsHP ? hpL : lpL;
+                    outR = masterSlot.filterIsHP ? hpR : lpR;
+                }
+                
+                // Process Master limiter
+                if (masterSlot.limiterEnabled) {
+                    slotLimiters[0].process(outL, outR);
+                }
+                
+                outL += metronomeVal + prevSampleValL;
+                outR += metronomeVal + prevSampleValR;
+                
+                output[idx]     = std::clamp(outL, -1.0f, 1.0f);
+                output[idx + 1] = std::clamp(outR, -1.0f, 1.0f);
+            }
+        } else {
+            for (int f = 0; f < chunkFrames; f++) {
+                int tickOffset = (int)(f * ticksPerFrame);
+                int currentFrameTick = currentTick + tickOffset;
+                
+                int currentBeat = currentFrameTick / ppq;
+                if (transport->metronomeEnabled.load() && currentBeat != lastMetronomeBeat) {
+                    lastMetronomeBeat = currentBeat;
+                    int beatsPerBar = project->beatsPerBar;
+                    metronomeClickFreq = ((currentBeat * ppq) % (ppq * beatsPerBar) == 0) ? 1200.0f : 800.0f;
+                    metronomeClickSampleRemaining = (int)(0.04f * sampleRate);
+                    metronomeClickPhase = 0.0f;
+                    metronomeClickPhaseStep = (float)(2.0 * 3.14159265358979323846 * metronomeClickFreq / sampleRate);
+                    metronomeClickDecayStep = 1.0f / metronomeClickSampleRemaining;
+                }
+                
+                float metronomeVal = 0.0f;
+                if (metronomeClickSampleRemaining > 0) {
+                    float amp = metronomeClickSampleRemaining * metronomeClickDecayStep;
+                    metronomeVal = sinf(metronomeClickPhase) * amp * 0.15f;
+                    metronomeClickPhase += metronomeClickPhaseStep;
+                    metronomeClickSampleRemaining--;
+                }
+
+                // Render preview sample if active (dry bypass)
+                float prevSampleValL = 0.0f;
+                float prevSampleValR = 0.0f;
+                {
+                    std::lock_guard<std::mutex> lock(previewSampleMutex);
+                    double playPosVal = previewSample.playPos.load();
+                    if (playPosVal >= 0.0) {
+                        int previewSize = (int)(previewSample.samples.size() / previewSample.numChannels);
+                        double ratio = previewSample.sampleRate / (double)sampleRate;
+                        
+                        double currentPos = playPosVal;
+                        size_t idx1 = (size_t)currentPos;
+                        size_t idx2 = idx1 + 1;
+                        if (idx2 >= (size_t)previewSize) idx2 = idx1;
+                        
+                        if (idx1 < (size_t)previewSize) {
+                            float t = (float)(currentPos - idx1);
+                            int chCount = previewSample.numChannels;
+                            
+                            float s1_L = previewSample.samples[idx1 * chCount];
+                            float s2_L = previewSample.samples[idx2 * chCount];
+                            prevSampleValL = (s1_L + t * (s2_L - s1_L)) * 0.6f;
+                            
+                            if (chCount > 1) {
+                                float s1_R = previewSample.samples[idx1 * chCount + 1];
+                                float s2_R = previewSample.samples[idx2 * chCount + 1];
+                                prevSampleValR = (s1_R + t * (s2_R - s1_R)) * 0.6f;
+                            } else {
+                                prevSampleValR = prevSampleValL;
+                            }
+                            
+                            playPosVal += ratio;
+                            if (playPosVal >= previewSize) {
+                                playPosVal = -1.0;
+                            }
+                            previewSample.playPos.store(playPosVal);
+                        } else {
+                            previewSample.playPos.store(-1.0);
+                        }
+                    }
+                }
+
+                // Process Master slot (0) filter on mono output
+                int idx = processedFrames + f;
+                float outMono = output[idx] * mv;
+                auto& masterSlot = project->mixer[0];
+                if (masterSlot.filterEnabled) {
+                    float fc = std::clamp(masterSlot.filterCutoff, 0.01f, 0.99f);
+                    float q = 1.0f - std::clamp(masterSlot.filterResonance, 0.0f, 0.95f);
+                    float fCoeff = 2.0f * sinf(3.14159265f * fc * 0.5f);
+                    fCoeff = std::clamp(fCoeff, 0.01f, 0.99f);
+                    
+                    float hp = outMono - mixerFilters[0].l1 - q * mixerFilters[0].l2;
+                    float bp = fCoeff * hp + mixerFilters[0].l1;
+                    float lp = fCoeff * bp + mixerFilters[0].l2;
+                    mixerFilters[0].l1 = bp;
+                    mixerFilters[0].l2 = lp;
+                    
+                    outMono = masterSlot.filterIsHP ? hp : lp;
+                }
+                
+                // Process Master limiter on mono output
+                if (masterSlot.limiterEnabled) {
+                    slotLimiters[0].process(outMono, outMono);
+                }
+                
+                float s = outMono + metronomeVal + (prevSampleValL + prevSampleValR) * 0.5f;
+                output[idx] = std::clamp(s, -1.0f, 1.0f);
+            }
         }
 
         currentTick += (int)(chunkFrames * ticksPerFrame);

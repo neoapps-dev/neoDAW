@@ -44,6 +44,19 @@ struct MixerSlot {
     std::string name = "Mixer";
     float volume = 0.8f, pan = 0.0f;
     bool muted = false;
+    // Stereo Feedback Delay
+    bool delayEnabled = false;
+    bool delayPingPong = false;
+    float delayTime = 0.3f;       // seconds
+    float delayFeedback = 0.4f;   // 0.0 – 0.95
+    float delayWet = 0.3f;        // dry/wet mix 0.0 – 1.0
+    // EQ Filter
+    bool filterEnabled = false;
+    bool filterIsHP = false;
+    float filterCutoff = 0.99f;   // 0.01 – 0.99 (maps exponentially 20Hz - 20kHz)
+    float filterResonance = 0.0f; // 0.0 – 0.95
+    // Limiter
+    bool limiterEnabled = false;
 };
 
 struct PlaylistClip {
@@ -98,4 +111,5 @@ struct Transport {
     std::atomic<bool> looping{false};
     std::atomic<int> loopStart{0};
     std::atomic<int> loopEnd{0};
+    std::atomic<bool> metronomeEnabled{false};
 };
