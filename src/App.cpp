@@ -53,8 +53,6 @@ static const char* keyToNoteName(int key) {
 
 void renderTheme() {
     ImGuiStyle& style = ImGui::GetStyle();
-    
-    // Layout and Padding Adjustments for Modern Look
     style.WindowRounding = 6.0f;
     style.ChildRounding = 6.0f;
     style.FrameRounding = 4.0f;
@@ -62,13 +60,11 @@ void renderTheme() {
     style.ScrollbarRounding = 12.0f;
     style.GrabRounding = 4.0f;
     style.TabRounding = 4.0f;
-    
     style.WindowBorderSize = 1.0f;
     style.ChildBorderSize = 0.0f;
     style.FrameBorderSize = 0.0f;
     style.PopupBorderSize = 1.0f;
     style.TabBorderSize = 0.0f;
-    
     style.WindowPadding = ImVec2(10, 10);
     style.FramePadding = ImVec2(8, 5);
     style.ItemSpacing = ImVec2(8, 6);
@@ -77,73 +73,45 @@ void renderTheme() {
     style.IndentSpacing = 20.0f;
     style.ScrollbarSize = 13.0f;
     style.GrabMinSize = 10.0f;
-    
-    // Premium Dark Theme Color Palette
     ImVec4* colors = style.Colors;
-    
-    // Core Backgrounds
-    colors[ImGuiCol_WindowBg]             = ImVec4(0.09f, 0.09f, 0.11f, 1.00f); // Dark Charcoal/Zinc
-    colors[ImGuiCol_ChildBg]              = ImVec4(0.12f, 0.12f, 0.14f, 1.00f); // Slightly lighter child panels
+    colors[ImGuiCol_WindowBg]             = ImVec4(0.09f, 0.09f, 0.11f, 1.00f);
+    colors[ImGuiCol_ChildBg]              = ImVec4(0.12f, 0.12f, 0.14f, 1.00f);
     colors[ImGuiCol_PopupBg]              = ImVec4(0.09f, 0.09f, 0.11f, 0.98f);
-    colors[ImGuiCol_MenuBarBg]            = ImVec4(0.07f, 0.07f, 0.08f, 1.00f); // Darkest header background
-    
-    // Borders
-    colors[ImGuiCol_Border]               = ImVec4(0.22f, 0.22f, 0.24f, 0.60f); // Soft edge contrast
+    colors[ImGuiCol_MenuBarBg]            = ImVec4(0.07f, 0.07f, 0.08f, 1.00f);
+    colors[ImGuiCol_Border]               = ImVec4(0.22f, 0.22f, 0.24f, 0.60f);
     colors[ImGuiCol_BorderShadow]         = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
-    
-    // Text
-    colors[ImGuiCol_Text]                 = ImVec4(0.95f, 0.96f, 0.98f, 1.00f); // Clean off-white
-    colors[ImGuiCol_TextDisabled]         = ImVec4(0.50f, 0.51f, 0.55f, 1.00f); // Muted secondary text
-    
-    // Frames
+    colors[ImGuiCol_Text]                 = ImVec4(0.95f, 0.96f, 0.98f, 1.00f);
+    colors[ImGuiCol_TextDisabled]         = ImVec4(0.50f, 0.51f, 0.55f, 1.00f);
     colors[ImGuiCol_FrameBg]              = ImVec4(0.16f, 0.16f, 0.18f, 1.00f);
     colors[ImGuiCol_FrameBgHovered]       = ImVec4(0.22f, 0.22f, 0.24f, 1.00f);
     colors[ImGuiCol_FrameBgActive]        = ImVec4(0.26f, 0.26f, 0.29f, 1.00f);
-    
-    // Headers / Selection tabs
     colors[ImGuiCol_TitleBg]              = ImVec4(0.07f, 0.07f, 0.08f, 1.00f);
     colors[ImGuiCol_TitleBgActive]        = ImVec4(0.09f, 0.09f, 0.11f, 1.00f);
     colors[ImGuiCol_TitleBgCollapsed]     = ImVec4(0.07f, 0.07f, 0.08f, 0.75f);
-    
-    // Accent colors (Premium Gold/Amber synth aesthetic)
-    ImVec4 accentColor                    = ImVec4(1.00f, 0.55f, 0.00f, 1.00f); // Warm Amber
+    ImVec4 accentColor                    = ImVec4(1.00f, 0.55f, 0.00f, 1.00f);
     ImVec4 accentHovered                  = ImVec4(1.00f, 0.65f, 0.15f, 1.00f);
     ImVec4 accentActive                   = ImVec4(1.00f, 0.75f, 0.30f, 1.00f);
-    
-    // Buttons
     colors[ImGuiCol_Button]               = ImVec4(0.20f, 0.20f, 0.23f, 1.00f);
     colors[ImGuiCol_ButtonHovered]        = ImVec4(0.28f, 0.28f, 0.32f, 1.00f);
     colors[ImGuiCol_ButtonActive]         = ImVec4(0.35f, 0.35f, 0.40f, 1.00f);
-    
-    // Sliders & Grabs
     colors[ImGuiCol_SliderGrab]           = accentColor;
     colors[ImGuiCol_SliderGrabActive]     = accentActive;
     colors[ImGuiCol_CheckMark]            = accentColor;
-    
-    // Tabs (Modern minimal tabs)
     colors[ImGuiCol_Tab]                  = ImVec4(0.12f, 0.12f, 0.14f, 1.00f);
     colors[ImGuiCol_TabHovered]           = ImVec4(0.20f, 0.20f, 0.23f, 1.00f);
     colors[ImGuiCol_TabActive]            = ImVec4(0.16f, 0.16f, 0.18f, 1.00f);
     colors[ImGuiCol_TabUnfocused]         = ImVec4(0.09f, 0.09f, 0.11f, 1.00f);
     colors[ImGuiCol_TabUnfocusedActive]   = ImVec4(0.12f, 0.12f, 0.14f, 1.00f);
-    
-    // Headings, Selectables, Collapsing Headers
     colors[ImGuiCol_Header]               = ImVec4(0.16f, 0.16f, 0.18f, 1.00f);
     colors[ImGuiCol_HeaderHovered]        = ImVec4(0.24f, 0.24f, 0.27f, 1.00f);
     colors[ImGuiCol_HeaderActive]         = ImVec4(0.28f, 0.28f, 0.32f, 1.00f);
-    
-    // Separators
     colors[ImGuiCol_Separator]            = ImVec4(0.16f, 0.16f, 0.18f, 1.00f);
     colors[ImGuiCol_SeparatorHovered]     = accentHovered;
     colors[ImGuiCol_SeparatorActive]      = accentActive;
-    
-    // Scrollbars
     colors[ImGuiCol_ScrollbarBg]          = ImVec4(0.07f, 0.07f, 0.08f, 0.60f);
     colors[ImGuiCol_ScrollbarGrab]        = ImVec4(0.24f, 0.24f, 0.27f, 1.00f);
     colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.30f, 0.30f, 0.34f, 1.00f);
     colors[ImGuiCol_ScrollbarGrabActive]  = ImVec4(0.36f, 0.36f, 0.40f, 1.00f);
-    
-    // Graph Plots & Selection
     colors[ImGuiCol_PlotLines]            = accentColor;
     colors[ImGuiCol_PlotLinesHovered]     = accentHovered;
     colors[ImGuiCol_PlotHistogram]        = accentColor;
@@ -187,7 +155,6 @@ void redo(AppState& state) {
 }
 
 void toggleStep(AppState& state, int channelIdx, int stepIndex) {
-    // Find the pattern that belongs to this channel
     int patIdx = -1;
     for (int p = 0; p < (int)state.project.patterns.size(); p++) {
         if (state.project.patterns[p].channelIndex == channelIdx) {
@@ -201,8 +168,6 @@ void toggleStep(AppState& state, int channelIdx, int stepIndex) {
     int stepTicks = ppq / 4; // 16th note
     int tickStart = stepIndex * stepTicks;
     int noteKey = state.stepSequencerKey;
-
-    // Check if a note already exists at this step
     int existingIdx = -1;
     for (int n = 0; n < (int)pat.notes.size(); n++) {
         if (pat.notes[n].start == tickStart && pat.notes[n].key == noteKey) {
@@ -213,10 +178,8 @@ void toggleStep(AppState& state, int channelIdx, int stepIndex) {
 
     pushUndo(state);
     if (existingIdx >= 0) {
-        // Remove the note (toggle off)
         pat.notes.erase(pat.notes.begin() + existingIdx);
     } else {
-        // Add a new note (toggle on)
         Note note;
         note.start = tickStart;
         note.length = stepTicks;
@@ -364,14 +327,10 @@ bool appLoadProject(AppState& state, const char* path) {
         state.engine->stopPlayback();
         state.undoStack.clear();
         state.redoStack.clear();
-        
-        // Reload all SoundFonts and Sampler samples into the engine
         if (state.engine) {
             state.engine->clearSamples();
             state.engine->lockAudio();
             state.engine->unloadSFont();
-            
-            // 1. Reload Sampler samples and map their indices
             for (auto& ch : state.project.channels) {
                 if (ch.isSampler && !ch.samplePath.empty()) {
                     ch.sampleIndex = state.engine->loadSample(ch.samplePath);
@@ -379,8 +338,7 @@ bool appLoadProject(AppState& state, const char* path) {
                     ch.sampleIndex = -1;
                 }
             }
-            
-            // 2. Reload the active SoundFont if there is one
+
             for (size_t i = 0; i < state.project.channels.size(); i++) {
                 auto& ch = state.project.channels[i];
                 if (ch.useSF2 && !ch.sf2Path.empty()) {
@@ -388,12 +346,12 @@ bool appLoadProject(AppState& state, const char* path) {
                     if (sfontId >= 0) {
                         state.engine->selectSFontPreset(sfontId, 0, ch.sf2Preset, (int)i);
                     }
-                    break; // AudioEngine supports a single global SoundFont
+                    break;
                 }
             }
             state.engine->unlockAudio();
         }
-        
+
         setStatus(state, "Loaded project: %s", path);
     } else {
         setStatus(state, "Failed to load project!");
@@ -589,8 +547,6 @@ void renderTransportBar(AppState& state) {
     }
     ImGui::SetItemTooltip("Toggle loop");
     ImGui::SameLine();
-
-    // --- Metronome Button ---
     bool metro = state.transport.metronomeEnabled.load();
     ImGui::PushStyleColor(ImGuiCol_Text, metro ? ImVec4(1.0f, 0.55f, 0.0f, 1.0f) : ImVec4(0.5f, 0.5f, 0.5f, 1.0f));
     if (ImGui::Button("MET", ImVec2(40, 24))) {
@@ -599,8 +555,6 @@ void renderTransportBar(AppState& state) {
     ImGui::PopStyleColor();
     ImGui::SetItemTooltip("Toggle Metronome Click");
     ImGui::SameLine();
-
-    // --- BPM control ---
     ImGui::PushItemWidth(60);
     float bpm = state.project.bpm;
     if (ImGui::DragFloat("##bpm", &bpm, 0.5f, 20.0f, 300.0f, "%.0f BPM")) {
@@ -611,7 +565,6 @@ void renderTransportBar(AppState& state) {
     ImGui::PopItemWidth();
     ImGui::SetItemTooltip("Tempo (BPM)");
     ImGui::SameLine();
-
     int ppq = state.project.ppq;
     int playHead = state.transport.playHead.load();
     int bars = playHead / (ppq * state.project.beatsPerBar);
@@ -691,29 +644,21 @@ void renderChannelRack(AppState& state) {
     }
 
     ImGui::Separator();
-
-    // --- Step sequencer constants ---
     const int NUM_STEPS = 16;
     const float stepBtnSize = 22.0f;
     const float channelNameW = 130.0f;
     int ppq = state.project.ppq;
     int stepTicks = ppq / 4;  // 16th note
-
-    // Step sequencer colors (FL Studio style: alternating groups of 4)
     const ImU32 COL_STEP_OFF_A = IM_COL32(70, 50, 40, 255);
     const ImU32 COL_STEP_OFF_B = IM_COL32(55, 55, 60, 255);
     const ImU32 COL_STEP_ON    = IM_COL32(255, 160, 30, 255);
     const ImU32 COL_STEP_ON_GLOW = IM_COL32(255, 200, 80, 255);
     const ImU32 COL_STEP_HOVER = IM_COL32(100, 90, 70, 255);
-
     int chanToRemove = -1;
-
     for (int c = 0; c < (int)channels.size(); c++) {
         auto& ch = channels[c];
         ImGui::PushID(c);
         bool selected = (c == state.project.selectedChannel);
-
-        // --- Channel name button (selectable) ---
         ImGui::PushStyleColor(ImGuiCol_Button, selected ? ImVec4(0.25f,0.20f,0.12f,1) : ImVec4(0.18f,0.18f,0.20f,1));
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.30f,0.25f,0.15f,1));
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.35f,0.28f,0.18f,1));
@@ -729,8 +674,6 @@ void renderChannelRack(AppState& state) {
         }
         ImGui::SetItemTooltip("Select channel (double-click to rename)");
         ImGui::SameLine();
-
-        // --- 16-step sequencer grid ---
         int patIdx = -1;
         for (int p = 0; p < (int)state.project.patterns.size(); p++) {
             if (state.project.patterns[p].channelIndex == c) {
@@ -742,7 +685,6 @@ void renderChannelRack(AppState& state) {
         for (int s = 0; s < NUM_STEPS; s++) {
             if (s > 0) ImGui::SameLine(0, 1);
             ImGui::PushID(1000 + s);
-
             bool stepOn = false;
             if (patIdx >= 0) {
                 int tickStart = s * stepTicks;
@@ -757,12 +699,10 @@ void renderChannelRack(AppState& state) {
 
             bool groupA = ((s / 4) % 2 == 0);
             ImU32 offCol = groupA ? COL_STEP_OFF_A : COL_STEP_OFF_B;
-
             ImGui::PushStyleColor(ImGuiCol_Button, stepOn ? ImGui::ColorConvertU32ToFloat4(COL_STEP_ON) : ImGui::ColorConvertU32ToFloat4(offCol));
             ImGui::PushStyleColor(ImGuiCol_ButtonHovered, stepOn ? ImGui::ColorConvertU32ToFloat4(COL_STEP_ON_GLOW) : ImGui::ColorConvertU32ToFloat4(COL_STEP_HOVER));
             ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImGui::ColorConvertU32ToFloat4(COL_STEP_ON_GLOW));
             ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 2.0f);
-
             char stepLabel[8];
             snprintf(stepLabel, sizeof(stepLabel), "##s%d", s);
             if (ImGui::Button(stepLabel, ImVec2(stepBtnSize, stepBtnSize))) {
@@ -775,8 +715,6 @@ void renderChannelRack(AppState& state) {
         }
 
         ImGui::SameLine(0, 8);
-
-        // --- Channel controls ---
         ImGui::PushStyleColor(ImGuiCol_Text, ch.muted ? COL_MUTED : IM_COL32(180,180,180,255));
         if (ImGui::SmallButton("M")) {
             pushUndo(state);
@@ -810,7 +748,6 @@ void renderChannelRack(AppState& state) {
         }
         ImGui::PopStyleColor();
         ImGui::SetItemTooltip("Delete channel");
-
         ImGui::PopID();
     }
 
@@ -872,7 +809,7 @@ void renderChannelRack(AppState& state) {
                                 break;
                             }
                         }
-                        
+
                         ImGui::PushItemWidth(180.0f);
                         if (ImGui::BeginCombo("Preset", currentPresetName.c_str())) {
                             for (const auto& p : presets) {
@@ -1049,34 +986,23 @@ void renderPianoRoll(AppState& state) {
     dl->AddLine(ImVec2(phx, childPos.y), ImVec2(phx, childPos.y + canvasH),
                 IM_COL32(255,50,50,200), 2.0f);
 
-    // --- Velocity Editor Lane Drawing ---
     float laneTop = childPos.y + numKeys * rowHeight + 20;
     float laneHeight = 80.0f;
     float laneBottom = laneTop + laneHeight;
-    
-    // Draw lane boundary separator
     dl->AddLine(ImVec2(childPos.x, laneTop), ImVec2(childPos.x + canvasW, laneTop), IM_COL32(80,80,80,255), 2.0f);
     dl->AddText(ImVec2(childPos.x + 4, laneTop + 4), IM_COL32(160,160,160,255), "Note Velocity");
-    
-    // Draw velocity bars for each note
     for (int ni = 0; ni < (int)pattern.notes.size(); ni++) {
         auto& note = pattern.notes[ni];
         float x = childPos.x + keyWidth + note.start * zoomX / (float)ppq;
         float w = std::max(2.0f, note.length * zoomX / (float)ppq);
-        
-        // Center the bar horizontally relative to the note block
         float barX = x + w * 0.5f;
         float barH = (note.velocity / 127.0f) * (laneHeight - 20.0f);
         float barY = laneBottom - 10.0f - barH;
-        
         bool editing = (ni == state.pianoRollEditingNote);
-        
-        // Draw the vertical line
-        dl->AddLine(ImVec2(barX, laneBottom - 10.0f), ImVec2(barX, barY), 
+        dl->AddLine(ImVec2(barX, laneBottom - 10.0f), ImVec2(barX, barY),
                     editing ? COL_NOTE_ACTIVE : IM_COL32(180, 100, 0, 200), 2.0f);
-        
-        // Draw a handle circle at the top of the bar
-        dl->AddCircleFilled(ImVec2(barX, barY), 4.0f, 
+
+        dl->AddCircleFilled(ImVec2(barX, barY), 4.0f,
                             editing ? COL_NOTE_ACTIVE : IM_COL32(255, 140, 0, 255));
     }
 
@@ -1089,9 +1015,7 @@ void renderPianoRoll(AppState& state) {
         if (relX >= 0 && relY >= 0) {
             float laneTopRel = numKeys * rowHeight + 20;
             float laneBottomRel = laneTopRel + 80.0f;
-            
-            if (relY >= laneTopRel && relY <= laneBottomRel) {
-                // Velocity lane interaction
+                if (relY >= laneTopRel && relY <= laneBottomRel) {
                 if (ImGui::IsMouseDown(0)) {
                     int closestNote = -1;
                     float minDist = 15.0f; // tolerance of 15 pixels
@@ -1107,7 +1031,7 @@ void renderPianoRoll(AppState& state) {
                         }
                     }
                     if (closestNote >= 0) {
-                        float pct = (laneBottomRel - 10.0f - relY) / 60.0f; // 60px active range
+                        float pct = (laneBottomRel - 10.0f - relY) / 60.0f; // 60px
                         int vel = std::clamp((int)(pct * 127.0f), 0, 127);
                         if (pattern.notes[closestNote].velocity != vel) {
                             if (!state.pianoRollDragPushedUndo) {
@@ -1121,7 +1045,6 @@ void renderPianoRoll(AppState& state) {
                     }
                 }
             } else {
-                // Standard piano roll grid interaction
                 int tick = (int)(relX * ppq / zoomX);
                 int keyIdx = (int)(relY / rowHeight);
                 int key = startKey + (numKeys - 1 - keyIdx);
@@ -1705,8 +1628,6 @@ void renderMixer(AppState& state) {
         }
         ImGui::PopStyleColor();
         ImGui::SetItemTooltip("Mute / Unmute");
-
-        // --- Delay Effect Controls ---
         ImGui::Spacing();
         ImGui::PushStyleColor(ImGuiCol_Text, slot.delayEnabled ? ImVec4(1.0f,0.7f,0.2f,1) : ImVec4(0.5f,0.5f,0.5f,1));
         if (ImGui::SmallButton("DLY")) {
@@ -1715,7 +1636,6 @@ void renderMixer(AppState& state) {
         }
         ImGui::PopStyleColor();
         ImGui::SetItemTooltip("Enable / Disable Delay");
-
         if (slot.delayEnabled) {
             ImGui::SameLine();
             ImGui::PushStyleColor(ImGuiCol_Text, slot.delayPingPong ? ImVec4(1.0f,0.7f,0.2f,1) : ImVec4(0.5f,0.5f,0.5f,1));
@@ -1726,7 +1646,6 @@ void renderMixer(AppState& state) {
             }
             ImGui::PopStyleColor();
             ImGui::SetItemTooltip("Toggle Ping-Pong Delay (Crossed Feedback)");
-
             ImGui::PushItemWidth(60);
             float dt = slot.delayTime;
             if (ImGui::DragFloat("##dlyTime", &dt, 0.01f, 0.01f, 2.0f, "%.2fs")) {
@@ -1734,14 +1653,12 @@ void renderMixer(AppState& state) {
                 state.project.modified = true;
             }
             ImGui::SetItemTooltip("Delay Time (seconds)");
-
             float fb = slot.delayFeedback;
             if (ImGui::DragFloat("##dlyFB", &fb, 0.01f, 0.0f, 0.95f, "FB%.2f")) {
                 slot.delayFeedback = std::clamp(fb, 0.0f, 0.95f);
                 state.project.modified = true;
             }
             ImGui::SetItemTooltip("Delay Feedback");
-
             float wet = slot.delayWet;
             if (ImGui::DragFloat("##dlyWet", &wet, 0.01f, 0.0f, 1.0f, "W%.2f")) {
                 slot.delayWet = std::clamp(wet, 0.0f, 1.0f);
@@ -1751,7 +1668,6 @@ void renderMixer(AppState& state) {
             ImGui::PopItemWidth();
         }
 
-        // --- Filter Effect Controls ---
         ImGui::Spacing();
         ImGui::PushStyleColor(ImGuiCol_Text, slot.filterEnabled ? ImVec4(1.0f,0.7f,0.2f,1) : ImVec4(0.5f,0.5f,0.5f,1));
         if (ImGui::SmallButton("FLT")) {
@@ -1761,7 +1677,6 @@ void renderMixer(AppState& state) {
         }
         ImGui::PopStyleColor();
         ImGui::SetItemTooltip("Enable / Disable Filter");
-
         if (slot.filterEnabled) {
             ImGui::SameLine();
             ImGui::PushStyleColor(ImGuiCol_Text, slot.filterIsHP ? ImVec4(1.0f,0.7f,0.2f,1) : ImVec4(0.5f,0.5f,0.5f,1));
@@ -1772,10 +1687,7 @@ void renderMixer(AppState& state) {
             }
             ImGui::PopStyleColor();
             ImGui::SetItemTooltip("Toggle Low-Pass / High-Pass");
-
             ImGui::PushItemWidth(60);
-            
-            // Logarithmic mapping for natural frequency sweep display (20 Hz - 20000 Hz)
             float cutoffVal = slot.filterCutoff;
             float freqHz = 20.0f * std::pow(1000.0f, cutoffVal);
             if (ImGui::DragFloat("##fltCutoff", &freqHz, freqHz * 0.05f, 20.0f, 20000.0f, "%.0fHz")) {
@@ -1784,7 +1696,6 @@ void renderMixer(AppState& state) {
                 state.project.modified = true;
             }
             ImGui::SetItemTooltip("Filter Cutoff Frequency");
-
             float res = slot.filterResonance;
             if (ImGui::DragFloat("##fltRes", &res, 0.01f, 0.0f, 0.95f, "Q%.2f")) {
                 slot.filterResonance = std::clamp(res, 0.0f, 0.95f);
@@ -1794,7 +1705,6 @@ void renderMixer(AppState& state) {
             ImGui::PopItemWidth();
         }
 
-        // --- Limiter Control ---
         ImGui::Spacing();
         ImGui::PushStyleColor(ImGuiCol_Text, slot.limiterEnabled ? ImVec4(1.0f,0.7f,0.2f,1) : ImVec4(0.5f,0.5f,0.5f,1));
         if (ImGui::SmallButton("LIM")) {
@@ -1804,7 +1714,6 @@ void renderMixer(AppState& state) {
         }
         ImGui::PopStyleColor();
         ImGui::SetItemTooltip("Enable / Disable Brickwall Limiter");
-
         ImGui::PopID();
         ImGui::EndGroup();
         ImGui::SameLine();

@@ -64,7 +64,7 @@ struct AppState {
     int pianoRollScrollStartY = 0;
     int pianoRollScrollOrigX = 0;
     int pianoRollScrollOrigY = 0;
-    int stepSequencerKey = 60; // default note key for step sequencer (C5)
+    int stepSequencerKey = 60; //neo: C5
 };
 
 bool appInit(AppState& state, AudioEngine* engine);

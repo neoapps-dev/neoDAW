@@ -59,7 +59,6 @@ static void initImGui() {
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
     io.IniFilename = "neodaw.ini";
 #ifdef _WIN32
-    // Try to load a clean system vector font instead of the default retro pixel font
     const char* fontPath = "C:\\Windows\\Fonts\\segoeui.ttf";
     if (GetFileAttributesA(fontPath) != INVALID_FILE_ATTRIBUTES) {
         io.Fonts->AddFontFromFileTTF(fontPath, 16.0f);

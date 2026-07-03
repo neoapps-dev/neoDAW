@@ -94,17 +94,13 @@ private:
     std::atomic<int> previewOn{0};
     fluid_settings_t* fluidSettings = nullptr;
     fluid_synth_t* fluidSynth = nullptr;
-    
-    // --- Metronome Click Synthesizer State ---
     int lastMetronomeBeat = -1;
     int metronomeClickSampleRemaining = 0;
     float metronomeClickPhase = 0.0f;
     float metronomeClickFreq = 800.0f;
     float metronomeClickPhaseStep = 0.0f;
     float metronomeClickDecayStep = 0.0f;
-
-    // --- Mixer-slot isolation & effects ---
-    static constexpr int MAX_DELAY_SAMPLES = 88200; // 2 seconds at 44100
+    static constexpr int MAX_DELAY_SAMPLES = 88200; //neo: 2s * 44100
     struct DelayLine {
         std::vector<float> bufferL;
         std::vector<float> bufferR;
@@ -133,24 +129,19 @@ private:
     };
     DelayLine mixerDelays[NUM_MIXER_SLOTS];
     bool mixerDelaysInit = false;
-
-    // --- Mixer-slot Filter States ---
     struct FilterState {
-        float l1 = 0.0f, l2 = 0.0f; // Left channel state
-        float r1 = 0.0f, r2 = 0.0f; // Right channel state
+        float l1 = 0.0f, l2 = 0.0f;
+        float r1 = 0.0f, r2 = 0.0f;
         void clear() {
             l1 = l2 = r1 = r2 = 0.0f;
         }
     };
     FilterState mixerFilters[NUM_MIXER_SLOTS];
     bool mixerFiltersInit = false;
-
-    // --- Master Limiter DSP ---
     struct MasterLimiter {
         float gain = 1.0f;
-        float threshold = 0.95f;     // limit peak to -0.5 dB
-        float releaseCoeff = 0.998f; // smooth release envelope follower
-        
+        float threshold = 0.95f;     //neo: -0.5 dB
+        float releaseCoeff = 0.998f;
         void process(float& l, float& r) {
             float peak = std::max(std::abs(l), std::abs(r));
             float targetGain = 1.0f;
@@ -158,9 +149,9 @@ private:
                 targetGain = threshold / peak;
             }
             if (targetGain < gain) {
-                gain = targetGain; // instant brickwall attack
+                gain = targetGain;
             } else {
-                gain = gain * releaseCoeff + targetGain * (1.0f - releaseCoeff); // smooth release
+                gain = gain * releaseCoeff + targetGain * (1.0f - releaseCoeff);
             }
             l *= gain;
             r *= gain;
@@ -171,13 +162,11 @@ private:
     };
     MasterLimiter slotLimiters[NUM_MIXER_SLOTS];
     bool slotLimitersInit = false;
-
-    // --- Live Sample Preview Voice ---
     struct PreviewSampleState {
         std::vector<float> samples;
         int numChannels = 1;
         double sampleRate = 44100.0;
-        std::atomic<double> playPos{-1.0}; // -1.0 means idle/stopped
+        std::atomic<double> playPos{-1.0}; //neo: idle
     };
     PreviewSampleState previewSample;
     std::mutex previewSampleMutex;
