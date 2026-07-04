@@ -260,7 +260,11 @@ void DiscordRPCManager::update(const char* state, const char* details, const cha
     }
     activity["instance"] = true;
     json args;
+#ifdef _WIN32
+    args["pid"] = (int64_t)GetCurrentProcessId();
+#else
     args["pid"] = (int64_t)getpid();
+#endif
     args["activity"] = activity;
     json frame;
     frame["cmd"] = "SET_ACTIVITY";
