@@ -1,4 +1,7 @@
 #include "App.h"
+#ifdef DISCORD_RPC_ENABLED
+#include "DiscordRPC.h"
+#endif
 #include "imgui.h"
 #include "imgui_internal.h"
 #include "backends/imgui_impl_sdl2.h"
@@ -18,6 +21,9 @@ static SDL_Window* gWindow = nullptr;
 static SDL_GLContext gGLContext = nullptr;
 static AppState gAppState;
 static AudioEngine gAudioEngine;
+#ifdef DISCORD_RPC_ENABLED
+static DiscordRPCManager gDiscordRPC;
+#endif
 static bool gRunning = true;
 static bool initSDL() {
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_AUDIO) != 0) {
@@ -88,6 +94,9 @@ static void shutdown() {
         SDL_DestroyWindow(gWindow);
         gWindow = nullptr;
     }
+#ifdef DISCORD_RPC_ENABLED
+    gDiscordRPC.shutdown();
+#endif
     SDL_Quit();
 }
 
@@ -162,21 +171,65 @@ static void handleImportMIDI() {
     ofn.nMaxFile = sizeof(path);
     ofn.lpstrTitle = "Import MIDI";
     ofn.Flags = OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR | OFN_HIDEREADONLY;
-    if (GetOpenFileNameA(&ofn) && strlen(path) > 0) {
-        appImportMIDI(gAppState, path);
+    if (!GetOpenFileNameA(&ofn) || strlen(path) == 0) return;
+    char sf2Path[MAX_PATH] = {0};
+    OPENFILENAMEA sf2Ofn = {0};
+    sf2Ofn.lStructSize = sizeof(sf2Ofn);
+    char sf2Filter[] = "SoundFont Files\0*.sf2\0All Files\0*.*\0";
+    sf2Ofn.lpstrFilter = sf2Filter;
+    sf2Ofn.lpstrFile = sf2Path;
+    sf2Ofn.nMaxFile = sizeof(sf2Path);
+    sf2Ofn.lpstrTitle = "Optional: Select SoundFont for MIDI (cancel to skip)";
+    sf2Ofn.Flags = OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR | OFN_HIDEREADONLY | OFN_DONTADDTORECENT;
+    const char* sf2 = (GetOpenFileNameA(&sf2Ofn) && strlen(sf2Path) > 0) ? sf2Path : nullptr;
+    int patBefore = (int)gAppState.project.patterns.size();
+    int chBefore = (int)gAppState.project.channels.size();
+    appImportMIDI(gAppState, path, sf2);
+    for (int patIdx = patBefore; patIdx < (int)gAppState.project.patterns.size(); patIdx++) {
+        int chIdx = gAppState.project.patterns[patIdx].channelIndex;
+        if (chIdx >= chBefore && chIdx < (int)gAppState.project.channels.size()) {
+            PlaylistClip clip;
+            clip.track = chIdx;
+            clip.patternIndex = patIdx;
+            clip.startTick = 0;
+            gAppState.project.playlist.push_back(clip);
+        }
     }
+    gAppState.project.modified = true;
 #else
     FILE* fp = popen("zenity --file-selection --title='Import MIDI' --file-filter='*.mid *.midi' 2>/dev/null", "r");
     if (!fp) return;
     char path[4096];
-    if (fgets(path, sizeof(path), fp)) {
-        size_t len = strlen(path);
-        if (len > 0 && path[len-1] == '\n') path[len-1] = '\0';
-        if (strlen(path) > 0) {
-            appImportMIDI(gAppState, path);
+    if (!fgets(path, sizeof(path), fp)) { pclose(fp); return; }
+    pclose(fp);
+    size_t len = strlen(path);
+    if (len > 0 && path[len-1] == '\n') path[len-1] = '\0';
+    if (strlen(path) == 0) return;
+    fp = popen("zenity --file-selection --title='Optional: Select SoundFont for MIDI (cancel to skip)' --file-filter='*.sf2' 2>/dev/null", "r");
+    char sf2Path[4096] = {0};
+    const char* sf2 = nullptr;
+    if (fp) {
+        if (fgets(sf2Path, sizeof(sf2Path), fp)) {
+            size_t slen = strlen(sf2Path);
+            if (slen > 0 && sf2Path[slen-1] == '\n') sf2Path[slen-1] = '\0';
+            if (strlen(sf2Path) > 0) sf2 = sf2Path;
+        }
+        pclose(fp);
+    }
+    int patBefore = (int)gAppState.project.patterns.size();
+    int chBefore = (int)gAppState.project.channels.size();
+    appImportMIDI(gAppState, path, sf2);
+    for (int patIdx = patBefore; patIdx < (int)gAppState.project.patterns.size(); patIdx++) {
+        int chIdx = gAppState.project.patterns[patIdx].channelIndex;
+        if (chIdx >= chBefore && chIdx < (int)gAppState.project.channels.size()) {
+            PlaylistClip clip;
+            clip.track = chIdx;
+            clip.patternIndex = patIdx;
+            clip.startTick = 0;
+            gAppState.project.playlist.push_back(clip);
         }
     }
-    pclose(fp);
+    gAppState.project.modified = true;
 #endif
 }
 
@@ -216,6 +269,9 @@ int main(int argc, char** argv) {
     }
 
     initImGui();
+#ifdef DISCORD_RPC_ENABLED
+    gDiscordRPC.init("1522995132079804446");
+#endif
     Uint64 lastTime = SDL_GetPerformanceCounter();
     while (gRunning) {
         SDL_Event event;
@@ -276,6 +332,26 @@ int main(int argc, char** argv) {
         ImGui::NewFrame();
         gAudioEngine.setProject(&gAppState.project);
         appRender(gAppState, deltaTime);
+#ifdef DISCORD_RPC_ENABLED
+        {
+            const char* stateStr;
+            const char* smallKey = nullptr;
+            const char* smallText = nullptr;
+            auto ts = gAppState.transport.state.load();
+            if (ts == TransportState::Playing) {
+                stateStr = "Playing";
+                smallKey = "play";
+                smallText = "Playing";
+            } else if (ts == TransportState::Paused) {
+                stateStr = "Paused";
+                smallKey = "pause";
+                smallText = "Paused";
+            } else {
+                stateStr = "Editing";
+            }
+            gDiscordRPC.update(stateStr, gAppState.project.name.c_str(), smallKey, smallText);
+        }
+#endif
         if (gAppState.actionOpen) {
             gAppState.actionOpen = false;
             handleFileOpen();

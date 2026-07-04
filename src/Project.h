@@ -139,5 +139,5 @@ struct ProjectFile {
 };
 
 bool projectExportWAV(const Project& project, const std::string& path, int sampleRate = 44100);
-bool projectImportMIDI(Project& project, const std::string& path);
+bool projectImportMIDI(Project& project, const std::string& path, const std::string& sf2Path = "");
 bool projectExportMIDI(const Project& project, const std::string& path);

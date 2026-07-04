@@ -22,6 +22,26 @@ FetchContent_Declare(
 set(WITH_FLOAT ON)
 set(STB_VORBIS ON)
 FetchContent_MakeAvailable(fluidlite)
+#neo: midifile
+FetchContent_Declare(
+  midifile
+  GIT_REPOSITORY https://github.com/craigsapp/midifile.git
+  GIT_TAG master
+)
+FetchContent_GetProperties(midifile)
+if(NOT midifile_POPULATED)
+  FetchContent_Populate(midifile)
+  add_library(midifile STATIC
+    ${midifile_SOURCE_DIR}/src/Options.cpp
+    ${midifile_SOURCE_DIR}/src/Binasc.cpp
+    ${midifile_SOURCE_DIR}/src/MidiEvent.cpp
+    ${midifile_SOURCE_DIR}/src/MidiEventList.cpp
+    ${midifile_SOURCE_DIR}/src/MidiFile.cpp
+    ${midifile_SOURCE_DIR}/src/MidiMessage.cpp
+  )
+  target_include_directories(midifile PUBLIC ${midifile_SOURCE_DIR}/include)
+  target_compile_features(midifile PUBLIC cxx_std_11)
+endif()
 #neo: nlohmann/json
 FetchContent_Declare(
   nlohmann_json
@@ -30,11 +50,13 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(nlohmann_json)
 find_package(OpenGL REQUIRED)
+option(DISCORD_RPC "Enable Discord Rich Presence" ON)
 add_executable(neodaw
   src/main.cpp
   src/App.cpp
   src/AudioEngine.cpp
   src/Project.cpp
+  src/DiscordRPC.cpp
   ${imgui_SOURCE_DIR}/imgui.cpp
   ${imgui_SOURCE_DIR}/imgui_draw.cpp
   ${imgui_SOURCE_DIR}/imgui_tables.cpp
@@ -55,8 +77,13 @@ target_link_libraries(neodaw PRIVATE
   SDL2::SDL2
   OpenGL::GL
   fluidlite-static
+  midifile
   nlohmann_json::nlohmann_json
 )
+
+if(DISCORD_RPC)
+  target_compile_definitions(neodaw PRIVATE DISCORD_RPC_ENABLED)
+endif()
 
 if(UNIX)
   target_link_libraries(neodaw PRIVATE m)

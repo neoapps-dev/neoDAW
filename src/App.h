@@ -77,7 +77,7 @@ void appShutdown(AppState& state);
 bool appSaveProject(AppState& state, const char* path);
 bool appLoadProject(AppState& state, const char* path);
 bool appExportWAV(AppState& state, const char* path);
-bool appImportMIDI(AppState& state, const char* path);
+bool appImportMIDI(AppState& state, const char* path, const char* sf2Path = nullptr);
 bool appExportMIDI(AppState& state, const char* path);
 void renderTheme();
 void renderMainMenu(AppState& state);

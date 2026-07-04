@@ -1,91 +1,21 @@
+#define DR_WAV_IMPLEMENTATION
+#include "dr_wav.h"
 #include "AudioEngine.h"
 #include <cstring>
 #include <algorithm>
 #include <cmath>
-#include <fstream>
 #include <cstdint>
 #include <SDL.h>
+#include <cstdio>
 static bool loadWavFile(const std::string& path, SampleData& sd) {
-    FILE* f = fopen(path.c_str(), "rb");
-    if (!f) return false;
-    auto cleanup = [&]() { fclose(f); };
-    char riff[4];
-    if (fread(riff, 1, 4, f) != 4 || memcmp(riff, "RIFF", 4) != 0) { cleanup(); return false; }
-    uint32_t fileSize;
-    fread(&fileSize, 4, 1, f);
-    char wave[4];
-    if (fread(wave, 1, 4, f) != 4 || memcmp(wave, "WAVE", 4) != 0) { cleanup(); return false; }
-    int audioFormat = 0;
-    int numChannels = 0;
-    int sampleRate = 0;
-    int bitsPerSample = 0;
-    uint32_t dataSize = 0;
-    uint32_t dataOffset = 0;
-    bool foundFmt = false, foundData = false;
-    while (true) {
-        char chunkId[4];
-        uint32_t chunkSize;
-        if (fread(chunkId, 1, 4, f) != 4) break;
-        if (fread(&chunkSize, 4, 1, f) != 1) break;
-        if (memcmp(chunkId, "fmt ", 4) == 0) {
-            foundFmt = true;
-            uint16_t fmt;
-            fread(&fmt, 2, 1, f);
-            audioFormat = fmt;
-            uint16_t ch;
-            fread(&ch, 2, 1, f);
-            numChannels = ch;
-            uint32_t sr;
-            fread(&sr, 4, 1, f);
-            sampleRate = sr;
-            fseek(f, 6, SEEK_CUR);
-            uint16_t bps;
-            fread(&bps, 2, 1, f);
-            bitsPerSample = bps;
-            if (audioFormat == 0xFFFE) audioFormat = 1;
-            uint32_t fmtRead = 16;
-            if (chunkSize > fmtRead) fseek(f, chunkSize - fmtRead, SEEK_CUR);
-        } else if (memcmp(chunkId, "data", 4) == 0) {
-            foundData = true;
-            dataSize = chunkSize;
-            dataOffset = ftell(f);
-            fseek(f, chunkSize, SEEK_CUR);
-        } else {
-            fseek(f, chunkSize, SEEK_CUR);
-        }
-    }
-
-    if (!foundFmt || !foundData) { cleanup(); return false; }
-    if (audioFormat != 1 && audioFormat != 3) { cleanup(); return false; }
-    int bytesPerSample = bitsPerSample / 8;
-    if (bytesPerSample < 1) bytesPerSample = 1;
-    int totalSamples = dataSize / bytesPerSample;
-    std::vector<uint8_t> raw(dataSize);
-    fseek(f, dataOffset, SEEK_SET);
-    fread(raw.data(), 1, dataSize, f);
-    fclose(f);
-    sd.samples.resize(totalSamples);
-    sd.sampleRate = sampleRate;
-    sd.numChannels = numChannels;
+    drwav wav;
+    if (!drwav_init_file(&wav, path.c_str(), NULL)) return false;
+    sd.samples.resize((size_t)wav.totalPCMFrameCount * wav.channels);
+    drwav_read_pcm_frames_f32(&wav, wav.totalPCMFrameCount, sd.samples.data());
+    sd.sampleRate = wav.sampleRate;
+    sd.numChannels = wav.channels;
     sd.loaded = true;
-    if (audioFormat == 3 && bitsPerSample == 32) {
-        memcpy(sd.samples.data(), raw.data(), totalSamples * sizeof(float));
-    } else if (bitsPerSample == 8) {
-        for (int i = 0; i < totalSamples; i++) sd.samples[i] = (raw[i] / 128.0f) - 1.0f;
-    } else if (bitsPerSample == 16) {
-        auto* src = (int16_t*)raw.data();
-        for (int i = 0; i < totalSamples; i++) sd.samples[i] = src[i] / 32768.0f;
-    } else if (bitsPerSample == 24) {
-        for (int i = 0; i < totalSamples; i++) {
-            uint32_t u = raw[i * 3] | (raw[i * 3 + 1] << 8) | (raw[i * 3 + 2] << 16);
-            int32_t val = (int32_t)(u ^ 0x800000) - 0x800000;
-            sd.samples[i] = val / 8388608.0f;
-        }
-    } else if (bitsPerSample == 32) {
-        auto* src = (int32_t*)raw.data();
-        for (int i = 0; i < totalSamples; i++) sd.samples[i] = src[i] / 2147483648.0f;
-    }
-
+    drwav_uninit(&wav);
     return true;
 }
 
@@ -342,25 +272,16 @@ bool AudioEngine::debugRenderToWav(const Project& proj, const Transport& trans, 
         else if (s < -1.0f) s = -1.0f;
     }
 
-    std::ofstream f(path, std::ios::binary);
-    if (!f.is_open()) return false;
-    auto write32 = [&](uint32_t v) { f.write((const char*)&v, 4); };
-    auto write16 = [&](uint16_t v) { f.write((const char*)&v, 2); };
-    uint32_t dataBytes = (uint32_t)(mix.size() * sizeof(float));
-    f.write("RIFF", 4);
-    write32(36 + dataBytes);
-    f.write("WAVE", 4);
-    f.write("fmt ", 4);
-    write32(16);
-    write16(3);
-    write16(numChannels);
-    write32(sampleRate);
-    write32(sampleRate * numChannels * (uint32_t)sizeof(float));
-    write16(numChannels * (uint16_t)sizeof(float));
-    write16(32);
-    f.write("data", 4);
-    write32(dataBytes);
-    f.write((const char*)mix.data(), dataBytes);
+    drwav_data_format df;
+    df.container = drwav_container_riff;
+    df.format = DR_WAVE_FORMAT_IEEE_FLOAT;
+    df.channels = numChannels;
+    df.sampleRate = sampleRate;
+    df.bitsPerSample = 32;
+    drwav w;
+    if (!drwav_init_file_write(&w, path, &df, NULL)) return false;
+    drwav_write_pcm_frames(&w, mix.size() / numChannels, mix.data());
+    drwav_uninit(&w);
     return true;
 }
 
@@ -408,25 +329,16 @@ bool AudioEngine::renderToWav(const Project& proj, const Transport& trans, const
         if (s > 1.0f) s = 1.0f;
         else if (s < -1.0f) s = -1.0f;
     }
-    std::ofstream f(path, std::ios::binary);
-    if (!f.is_open()) return false;
-    auto write32 = [&](uint32_t v) { f.write((const char*)&v, 4); };
-    auto write16 = [&](uint16_t v) { f.write((const char*)&v, 2); };
-    uint32_t dataBytes = (uint32_t)(mix.size() * sizeof(float));
-    f.write("RIFF", 4);
-    write32(36 + dataBytes);
-    f.write("WAVE", 4);
-    f.write("fmt ", 4);
-    write32(16);
-    write16(3);
-    write16(numChannels);
-    write32(outSampleRate);
-    write32(outSampleRate * numChannels * (uint32_t)sizeof(float));
-    write16(numChannels * (uint16_t)sizeof(float));
-    write16(32);
-    f.write("data", 4);
-    write32(dataBytes);
-    f.write((const char*)mix.data(), dataBytes);
+    drwav_data_format df;
+    df.container = drwav_container_riff;
+    df.format = DR_WAVE_FORMAT_IEEE_FLOAT;
+    df.channels = numChannels;
+    df.sampleRate = outSampleRate;
+    df.bitsPerSample = 32;
+    drwav w;
+    if (!drwav_init_file_write(&w, path, &df, NULL)) return false;
+    drwav_write_pcm_frames(&w, mix.size() / numChannels, mix.data());
+    drwav_uninit(&w);
     return true;
 }
 
@@ -497,17 +409,16 @@ bool AudioEngine::debugRenderFreshToWav(const Project& proj, const Transport& tr
         else if (s < -1.0f) s = -1.0f;
     }
 
-    std::ofstream f(path, std::ios::binary);
-    if (!f.is_open()) return false;
-    auto write32 = [&](uint32_t v) { f.write((const char*)&v, 4); };
-    auto write16 = [&](uint16_t v) { f.write((const char*)&v, 2); };
-    uint32_t dataBytes = (uint32_t)(mix.size() * sizeof(float));
-    f.write("RIFF", 4); write32(36 + dataBytes); f.write("WAVE", 4);
-    f.write("fmt ", 4); write32(16); write16(3); write16(numChannels);
-    write32(sampleRate); write32(sampleRate * numChannels * (uint32_t)sizeof(float));
-    write16(numChannels * (uint16_t)sizeof(float)); write16(32);
-    f.write("data", 4); write32(dataBytes);
-    f.write((const char*)mix.data(), dataBytes);
+    drwav_data_format df;
+    df.container = drwav_container_riff;
+    df.format = DR_WAVE_FORMAT_IEEE_FLOAT;
+    df.channels = numChannels;
+    df.sampleRate = sampleRate;
+    df.bitsPerSample = 32;
+    drwav w;
+    if (!drwav_init_file_write(&w, path, &df, NULL)) return false;
+    drwav_write_pcm_frames(&w, mix.size() / numChannels, mix.data());
+    drwav_uninit(&w);
     return true;
 }
 
@@ -581,17 +492,16 @@ bool AudioEngine::debugRenderPoolFreshLoop(const Project& proj, const Transport&
         else if (s < -1.0f) s = -1.0f;
     }
 
-    std::ofstream f(path, std::ios::binary);
-    if (!f.is_open()) return false;
-    auto write32 = [&](uint32_t v) { f.write((const char*)&v, 4); };
-    auto write16 = [&](uint16_t v) { f.write((const char*)&v, 2); };
-    uint32_t dataBytes = (uint32_t)(mix.size() * sizeof(float));
-    f.write("RIFF", 4); write32(36 + dataBytes); f.write("WAVE", 4);
-    f.write("fmt ", 4); write32(16); write16(3); write16(numChannels);
-    write32(sampleRate); write32(sampleRate * numChannels * (uint32_t)sizeof(float));
-    write16(numChannels * (uint16_t)sizeof(float)); write16(32);
-    f.write("data", 4); write32(dataBytes);
-    f.write((const char*)mix.data(), dataBytes);
+    drwav_data_format df;
+    df.container = drwav_container_riff;
+    df.format = DR_WAVE_FORMAT_IEEE_FLOAT;
+    df.channels = numChannels;
+    df.sampleRate = sampleRate;
+    df.bitsPerSample = 32;
+    drwav w;
+    if (!drwav_init_file_write(&w, path, &df, NULL)) return false;
+    drwav_write_pcm_frames(&w, mix.size() / numChannels, mix.data());
+    drwav_uninit(&w);
     return true;
 }
 
@@ -703,17 +613,16 @@ bool AudioEngine::debugRenderEngineSingleToWav(const Project& proj, const Transp
         else if (s < -1.0f) s = -1.0f;
     }
 
-    std::ofstream f(path, std::ios::binary);
-    if (!f.is_open()) return false;
-    auto write32 = [&](uint32_t v) { f.write((const char*)&v, 4); };
-    auto write16 = [&](uint16_t v) { f.write((const char*)&v, 2); };
-    uint32_t dataBytes = (uint32_t)(mix.size() * sizeof(float));
-    f.write("RIFF", 4); write32(36 + dataBytes); f.write("WAVE", 4);
-    f.write("fmt ", 4); write32(16); write16(3); write16(numChannels);
-    write32(sampleRate); write32(sampleRate * numChannels * (uint32_t)sizeof(float));
-    write16(numChannels * (uint16_t)sizeof(float)); write16(32);
-    f.write("data", 4); write32(dataBytes);
-    f.write((const char*)mix.data(), dataBytes);
+    drwav_data_format df;
+    df.container = drwav_container_riff;
+    df.format = DR_WAVE_FORMAT_IEEE_FLOAT;
+    df.channels = numChannels;
+    df.sampleRate = sampleRate;
+    df.bitsPerSample = 32;
+    drwav w;
+    if (!drwav_init_file_write(&w, path, &df, NULL)) return false;
+    drwav_write_pcm_frames(&w, mix.size() / numChannels, mix.data());
+    drwav_uninit(&w);
     return true;
 }
 

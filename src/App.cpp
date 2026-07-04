@@ -367,10 +367,33 @@ bool appExportWAV(AppState& state, const char* path) {
     return ok;
 }
 
-bool appImportMIDI(AppState& state, const char* path) {
-    bool ok = projectImportMIDI(state.project, path);
-    if (ok) setStatus(state, "Imported MIDI: %s", path);
-    else setStatus(state, "MIDI import failed!");
+bool appImportMIDI(AppState& state, const char* path, const char* sf2Path) {
+    int chBefore = (int)state.project.channels.size();
+    bool ok = projectImportMIDI(state.project, path, sf2Path ? sf2Path : "");
+    if (ok) {
+        if (sf2Path && state.engine) {
+            state.engine->lockAudio();
+            int sfontId = state.engine->loadSFont(sf2Path);
+            if (sfontId >= 0) {
+                for (int chIdx = chBefore; chIdx < (int)state.project.channels.size(); chIdx++) {
+                    auto& ch = state.project.channels[chIdx];
+                    int prog = ch.sf2Preset;
+                    if (!state.engine->selectSFontPreset(sfontId, 0, prog, chIdx)) {
+                        for (int p = 0; p < 128; p++) {
+                            if (state.engine->selectSFontPreset(sfontId, 0, p, chIdx)) {
+                                prog = p; break;
+                            }
+                        }
+                    }
+                    ch.sf2Preset = prog;
+                }
+            }
+            state.engine->unlockAudio();
+        }
+        setStatus(state, "Imported MIDI: %s", path);
+    } else {
+        setStatus(state, "MIDI import failed!");
+    }
     return ok;
 }
 
@@ -1635,17 +1658,17 @@ void renderPlaylist(AppState& state) {
                     int patBefore = (int)state.project.patterns.size();
                     int chBefore = (int)state.project.channels.size();
                     if (appImportMIDI(state, fpath.c_str())) {
-                        int patIdx = (int)state.project.patterns.size() - 1;
-                        int chIdx = (int)state.project.channels.size() - 1;
-                        if (patIdx >= patBefore && chIdx >= chBefore) {
-                            state.project.patterns[patIdx].channelIndex = chIdx;
-                            PlaylistClip clip;
-                            clip.track = chIdx;
-                            clip.patternIndex = patIdx;
-                            clip.startTick = 0;
-                            state.project.playlist.push_back(clip);
-                            state.project.modified = true;
+                        for (int patIdx = patBefore; patIdx < (int)state.project.patterns.size(); patIdx++) {
+                            int chIdx = state.project.patterns[patIdx].channelIndex;
+                            if (chIdx >= chBefore && chIdx < (int)state.project.channels.size()) {
+                                PlaylistClip clip;
+                                clip.track = chIdx;
+                                clip.patternIndex = patIdx;
+                                clip.startTick = 0;
+                                state.project.playlist.push_back(clip);
+                            }
                         }
+                        state.project.modified = true;
                         setStatus(state, "Imported MIDI: %s", fpath.c_str());
                     }
                 } else if (ext == ".sf2") {
