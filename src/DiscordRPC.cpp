@@ -205,7 +205,7 @@ void DiscordRPCManager::init(const char* clientId) {
     }
 }
 
-void DiscordRPCManager::update(const char* state, const char* details, const char* smallImageKey, const char* smallImageText) {
+void DiscordRPCManager::update(const char* state, const char* details, const char* smallImageKey, const char* smallImageText, int partySize, int partyMax, bool resetTimer) {
     if (!m_initialized) { fprintf(stderr, "[DiscordRPC] update: not initialized\n"); return; }
     fprintf(stderr, "[DiscordRPC] update: state=%s details=%s\n", state ? state : "null", details ? details : "null");
     if (!isConnected()) {
@@ -246,6 +246,8 @@ void DiscordRPCManager::update(const char* state, const char* details, const cha
     std::string st = smallImageText ? smallImageText : "";
     if (m_lastSmallKey != sk) { m_lastSmallKey = sk; changed = true; }
     if (m_lastSmallText != st) { m_lastSmallText = st; changed = true; }
+    if (m_lastPartySize != partySize) { m_lastPartySize = partySize; changed = true; }
+    if (m_lastPartyMax != partyMax) { m_lastPartyMax = partyMax; changed = true; }
     if (!changed) { return; }
     if (!isConnected()) return;
     json activity;

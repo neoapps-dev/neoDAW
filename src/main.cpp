@@ -334,22 +334,37 @@ int main(int argc, char** argv) {
         appRender(gAppState, deltaTime);
 #ifdef DISCORD_RPC_ENABLED
         {
-            const char* stateStr;
+            std::string stateStr;
             const char* smallKey = nullptr;
             const char* smallText = nullptr;
             auto ts = gAppState.transport.state.load();
+            int playHead = gAppState.transport.playHead.load();
+            float bpm = gAppState.project.bpm;
+            int ticksPerBar = gAppState.project.ticksPerBar();
+            int ppq = gAppState.project.ppq;
+            int bar = ticksPerBar > 0 ? playHead / ticksPerBar : 0;
+            int beat = ticksPerBar > 0 ? (playHead % ticksPerBar) / ppq : 0;
+            int tick = ppq > 0 ? playHead % ppq : 0;
+            int numChannels = (int)gAppState.project.channels.size();
+
             if (ts == TransportState::Playing) {
-                stateStr = "Playing";
+                char buf[128];
+                snprintf(buf, sizeof(buf), "Playing · %.0f BPM · Bar %d · %d.%d.%03d", bpm, bar + 1, bar + 1, beat + 1, tick);
+                stateStr = buf;
                 smallKey = "play";
                 smallText = "Playing";
             } else if (ts == TransportState::Paused) {
-                stateStr = "Paused";
+                char buf[128];
+                snprintf(buf, sizeof(buf), "Paused · Bar %d · %d.%d.%03d", bar + 1, bar + 1, beat + 1, tick);
+                stateStr = buf;
                 smallKey = "pause";
                 smallText = "Paused";
             } else {
-                stateStr = "Editing";
+                char buf[128];
+                snprintf(buf, sizeof(buf), "Editing · %d channel%s", numChannels, numChannels == 1 ? "" : "s");
+                stateStr = buf;
             }
-            gDiscordRPC.update(stateStr, gAppState.project.name.c_str(), smallKey, smallText);
+            gDiscordRPC.update(stateStr.c_str(), gAppState.project.name.c_str(), smallKey, smallText, numChannels, 8);
         }
 #endif
         if (gAppState.actionOpen) {

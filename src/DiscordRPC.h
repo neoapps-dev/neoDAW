@@ -6,7 +6,7 @@ public:
     DiscordRPCManager();
     ~DiscordRPCManager();
     void init(const char* clientId);
-    void update(const char* state, const char* details, const char* smallImageKey = nullptr, const char* smallImageText = nullptr);
+    void update(const char* state, const char* details, const char* smallImageKey = nullptr, const char* smallImageText = nullptr, int partySize = 0, int partyMax = 0, bool resetTimer = false);
     void shutdown();
     bool isInitialized() const { return m_initialized; }
 
@@ -29,5 +29,7 @@ private:
     std::string m_lastDetails;
     std::string m_lastSmallKey;
     std::string m_lastSmallText;
+    int m_lastPartySize = 0;
+    int m_lastPartyMax = 0;
     int m_reconnectAttempts = 0;
 };
