@@ -69,6 +69,9 @@ struct AppState {
     int pianoRollScrollOrigX = 0;
     int pianoRollScrollOrigY = 0;
     int stepSequencerKey = 60; //neo: C5
+    bool pianoRollDragVelocity = false;
+    int pianoRollDragStartVel = 0;
+    std::vector<int> pianoRollDragOrigVels;
 };
 
 bool appInit(AppState& state, AudioEngine* engine);

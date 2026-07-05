@@ -1115,6 +1115,7 @@ void renderPianoRoll(AppState& state) {
     float laneBottom = laneTop + laneHeight;
     dl->AddLine(ImVec2(childPos.x, laneTop), ImVec2(childPos.x + canvasW, laneTop), IM_COL32(80,80,80,255), 2.0f);
     dl->AddText(ImVec2(childPos.x + 4, laneTop + 4), IM_COL32(160,160,160,255), "Note Velocity");
+    float velBarWidth = std::max(4.0f, zoomX * 0.25f);
     for (int ni = 0; ni < (int)pattern.notes.size(); ni++) {
         auto& note = pattern.notes[ni];
         float x = childPos.x + keyWidth + note.start * zoomX / (float)ppq;
@@ -1123,11 +1124,9 @@ void renderPianoRoll(AppState& state) {
         float barH = (note.velocity / 127.0f) * (laneHeight - 20.0f);
         float barY = laneBottom - 10.0f - barH;
         bool editing = (ni == state.pianoRollEditingNote);
-        dl->AddLine(ImVec2(barX, laneBottom - 10.0f), ImVec2(barX, barY),
-                    editing ? COL_NOTE_ACTIVE : IM_COL32(180, 100, 0, 200), 2.0f);
-
-        dl->AddCircleFilled(ImVec2(barX, barY), 4.0f,
-                            editing ? COL_NOTE_ACTIVE : IM_COL32(255, 140, 0, 255));
+        bool selected = std::find(state.pianoRollSelectedNotes.begin(), state.pianoRollSelectedNotes.end(), ni) != state.pianoRollSelectedNotes.end();
+        ImU32 col = editing ? COL_NOTE_ACTIVE : (selected ? IM_COL32(255, 200, 50, 200) : IM_COL32(180, 100, 0, 200));
+        dl->AddRectFilled(ImVec2(barX - velBarWidth * 0.5f, barY), ImVec2(barX + velBarWidth * 0.5f, laneBottom - 10.0f), col, 2.0f);
     }
 
     ImGui::InvisibleButton("##pianoRollClick", ImVec2(canvasW, canvasH));
@@ -1140,33 +1139,47 @@ void renderPianoRoll(AppState& state) {
             float laneTopRel = numKeys * rowHeight + 20;
             float laneBottomRel = laneTopRel + 80.0f;
                 if (relY >= laneTopRel && relY <= laneBottomRel) {
-                if (ImGui::IsMouseDown(0)) {
-                    int closestNote = -1;
-                    float minDist = 15.0f; //neo: tolerance of 15 pixels
-                    for (int ni = 0; ni < (int)pattern.notes.size(); ni++) {
-                        auto& note = pattern.notes[ni];
-                        float nx = childPos.x + keyWidth + note.start * zoomX / (float)ppq;
-                        float nw = std::max(2.0f, note.length * zoomX / (float)ppq);
-                        float barX = nx + nw * 0.5f;
-                        float d = std::abs(mousePos.x - barX);
-                        if (d < minDist) {
-                            minDist = d;
-                            closestNote = ni;
+                int closestNote = -1;
+                float minDist = 15.0f;
+                for (int ni = 0; ni < (int)pattern.notes.size(); ni++) {
+                    auto& note = pattern.notes[ni];
+                    float nx = childPos.x + keyWidth + note.start * zoomX / (float)ppq;
+                    float nw = std::max(2.0f, note.length * zoomX / (float)ppq);
+                    float barX = nx + nw * 0.5f;
+                    float d = std::abs(mousePos.x - barX);
+                    if (d < minDist) { minDist = d; closestNote = ni; }
+                }
+                if (ImGui::IsMouseClicked(0) && closestNote >= 0) {
+                    state.pianoRollDragVelocity = true;
+                    state.pianoRollEditingNote = closestNote;
+                    state.pianoRollDragStartVel = pattern.notes[closestNote].velocity;
+                    state.pianoRollDragOrigVels.clear();
+                    if (std::find(state.pianoRollSelectedNotes.begin(), state.pianoRollSelectedNotes.end(), closestNote) != state.pianoRollSelectedNotes.end()) {
+                        for (int sni : state.pianoRollSelectedNotes) {
+                            if (sni >= 0 && sni < (int)pattern.notes.size())
+                                state.pianoRollDragOrigVels.push_back(pattern.notes[sni].velocity);
                         }
                     }
-                    if (closestNote >= 0) {
-                        float pct = (laneBottomRel - 10.0f - relY) / 60.0f; // 60px
-                        int vel = std::clamp((int)(pct * 127.0f), 0, 127);
-                        if (pattern.notes[closestNote].velocity != vel) {
-                            if (!state.pianoRollDragPushedUndo) {
-                                pushUndo(state);
-                                state.pianoRollDragPushedUndo = true;
-                            }
-                            pattern.notes[closestNote].velocity = vel;
-                            state.pianoRollEditingNote = closestNote;
-                            state.project.modified = true;
+                    pushUndo(state);
+                    state.pianoRollDragPushedUndo = true;
+                    float pct = (laneBottomRel - 10.0f - relY) / 60.0f;
+                    int vel = std::clamp((int)(pct * 127.0f), 0, 127);
+                    pattern.notes[closestNote].velocity = vel;
+                    state.project.modified = true;
+                }
+                if (ImGui::IsMouseDragging(0) && state.pianoRollDragVelocity && closestNote >= 0) {
+                    float pct = (laneBottomRel - 10.0f - relY) / 60.0f;
+                    int vel = std::clamp((int)(pct * 127.0f), 0, 127);
+                    if (!state.pianoRollDragOrigVels.empty() && std::find(state.pianoRollSelectedNotes.begin(), state.pianoRollSelectedNotes.end(), closestNote) != state.pianoRollSelectedNotes.end()) {
+                        float ratio = state.pianoRollDragStartVel > 0 ? (float)vel / state.pianoRollDragStartVel : 0.0f;
+                        for (int i = 0; i < (int)state.pianoRollSelectedNotes.size() && i < (int)state.pianoRollDragOrigVels.size(); i++) {
+                            int sni = state.pianoRollSelectedNotes[i];
+                            if (sni >= 0 && sni < (int)pattern.notes.size()) pattern.notes[sni].velocity = std::clamp((int)(state.pianoRollDragOrigVels[i] * ratio), 0, 127);
                         }
+                    } else {
+                        if (closestNote >= 0 && closestNote < (int)pattern.notes.size()) pattern.notes[closestNote].velocity = vel;
                     }
+                    state.project.modified = true;
                 }
             } else {
                 int tick = (int)(relX * ppq / zoomX);
@@ -1210,7 +1223,39 @@ void renderPianoRoll(AppState& state) {
                                     state.engine->previewNoteOn(n.key);
                                     state.pianoRollPreviewKey = n.key;
                                 }
-                                if (mousePos.x >= nx + nw - 6) {
+                                bool isAlt = ImGui::GetIO().KeyAlt;
+                                if (isAlt) {
+                                    pushUndo(state);
+                                    state.pianoRollDragPushedUndo = true;
+                                    std::vector<int> srcNotes;
+                                    if (std::find(state.pianoRollSelectedNotes.begin(), state.pianoRollSelectedNotes.end(), ni) != state.pianoRollSelectedNotes.end()) srcNotes = state.pianoRollSelectedNotes; else srcNotes.push_back(ni);
+                                    std::vector<int> newIndices;
+                                    for (int srcIdx : srcNotes) {
+                                        if (srcIdx >= 0 && srcIdx < (int)pattern.notes.size()) {
+                                            Note dup = pattern.notes[srcIdx];
+                                            dup.start += ppq / 8;
+                                            pattern.notes.push_back(dup);
+                                            newIndices.push_back((int)pattern.notes.size() - 1);
+                                        }
+                                    }
+                                    state.pianoRollSelectedNotes = newIndices;
+                                    state.pianoRollEditingNote = newIndices.empty() ? -1 : newIndices[0];
+                                    state.pianoRollDragging = true;
+                                    state.pianoRollDragNote = newIndices.empty() ? -1 : newIndices[0];
+                                    state.pianoRollDragStartX = mousePos.x;
+                                    state.pianoRollDragStartY = mousePos.y;
+                                    state.pianoRollDragStartKey = n.key;
+                                    state.pianoRollDragStartTick = n.start + ppq / 8;
+                                    state.pianoRollDragOrigTicks.clear();
+                                    state.pianoRollDragOrigKeys.clear();
+                                    for (int sni : newIndices) {
+                                        if (sni >= 0 && sni < (int)pattern.notes.size()) {
+                                            state.pianoRollDragOrigTicks.push_back(pattern.notes[sni].start);
+                                            state.pianoRollDragOrigKeys.push_back(pattern.notes[sni].key);
+                                        }
+                                    }
+                                    state.project.modified = true;
+                                } else if (mousePos.x >= nx + nw - 6) {
                                      state.pianoRollResizing = true;
                                      state.pianoRollResizingNote = ni;
                                      state.pianoRollDragStartX = mousePos.x;
@@ -1397,6 +1442,8 @@ void renderPianoRoll(AppState& state) {
         state.pianoRollResizing = false;
         state.pianoRollResizingNote = -1;
         state.pianoRollDragPushedUndo = false;
+        state.pianoRollDragVelocity = false;
+        state.pianoRollDragOrigVels.clear();
         state.pianoRollSelectedNotes.erase(
             std::remove_if(state.pianoRollSelectedNotes.begin(), state.pianoRollSelectedNotes.end(),
                 [&](int idx) { return idx < 0 || idx >= (int)pattern.notes.size(); }),
@@ -2193,8 +2240,28 @@ void appRender(AppState& state, float deltaTime) {
     if (io.KeyCtrl && io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_Z) && !io.KeyAlt) {
         redo(state);
     }
-    if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_D) && !io.KeyShift && !io.KeyAlt) {
+    if (io.KeyCtrl && io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_E) && !io.KeyAlt) {
         state.showExportDialog = true;
+    }
+    if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_D) && !io.KeyShift && !io.KeyAlt) {
+        if (state.showPianoRoll && state.project.selectedPattern >= 0 &&
+            state.project.selectedPattern < (int)state.project.patterns.size()) {
+            auto& pat = state.project.patterns[state.project.selectedPattern];
+            if (!state.pianoRollSelectedNotes.empty()) {
+                pushUndo(state);
+                std::vector<int> newIndices;
+                for (int sni : state.pianoRollSelectedNotes) {
+                    if (sni >= 0 && sni < (int)pat.notes.size()) {
+                        Note dup = pat.notes[sni];
+                        pat.notes.push_back(dup);
+                        newIndices.push_back((int)pat.notes.size() - 1);
+                    }
+                }
+                state.pianoRollSelectedNotes = newIndices;
+                state.project.modified = true;
+                setStatus(state, "Duplicated %d notes", (int)newIndices.size());
+            }
+        }
     }
     if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_C) && !io.KeyShift && !io.KeyAlt) {
         if (state.showPianoRoll && state.project.selectedPattern >= 0 &&
@@ -2282,6 +2349,35 @@ void appRender(AppState& state, float deltaTime) {
             }
             state.pianoRollEditingNote = -1;
             state.project.modified = true;
+        }
+    }
+
+    if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+        state.pianoRollSelectedNotes.clear();
+    }
+
+    if (state.showPianoRoll && !state.pianoRollDragging && !state.pianoRollResizing) {
+        auto& pat = state.project.patterns[state.project.selectedPattern];
+        if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow) || ImGui::IsKeyPressed(ImGuiKey_RightArrow) ||
+            ImGui::IsKeyPressed(ImGuiKey_UpArrow) || ImGui::IsKeyPressed(ImGuiKey_DownArrow)) {
+            if (!state.pianoRollSelectedNotes.empty()) {
+                pushUndo(state);
+                int ppq = state.project.ppq;
+                int snapT = state.pianoRollSnapEnabled ? ppq / state.pianoRollSnap : 1;
+                int dx = 0, dy = 0;
+                if (ImGui::IsKeyPressed(ImGuiKey_LeftArrow)) dx = -(io.KeyCtrl ? ppq * state.project.beatsPerBar : snapT);
+                if (ImGui::IsKeyPressed(ImGuiKey_RightArrow)) dx = (io.KeyCtrl ? ppq * state.project.beatsPerBar : snapT);
+                if (ImGui::IsKeyPressed(ImGuiKey_UpArrow)) dy = 1;
+                if (ImGui::IsKeyPressed(ImGuiKey_DownArrow)) dy = -1;
+                if (io.KeyCtrl && (ImGui::IsKeyPressed(ImGuiKey_UpArrow) || ImGui::IsKeyPressed(ImGuiKey_DownArrow))) dy *= 12;
+                for (int sni : state.pianoRollSelectedNotes) {
+                    if (sni >= 0 && sni < (int)pat.notes.size()) {
+                        pat.notes[sni].start = std::max(0, pat.notes[sni].start + dx);
+                        pat.notes[sni].key = std::clamp(pat.notes[sni].key + dy, 0, 127);
+                    }
+                }
+                state.project.modified = true;
+            }
         }
     }
 
