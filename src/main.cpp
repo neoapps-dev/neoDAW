@@ -1,7 +1,4 @@
 #include "App.h"
-#ifdef DISCORD_RPC_ENABLED
-#include "DiscordRPC.h"
-#endif
 #include "imgui.h"
 #include "imgui_internal.h"
 #include "backends/imgui_impl_sdl2.h"
@@ -21,9 +18,6 @@ static SDL_Window* gWindow = nullptr;
 static SDL_GLContext gGLContext = nullptr;
 static AppState gAppState;
 static AudioEngine gAudioEngine;
-#ifdef DISCORD_RPC_ENABLED
-static DiscordRPCManager gDiscordRPC;
-#endif
 static bool gRunning = true;
 static bool initSDL() {
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_AUDIO) != 0) {
@@ -94,9 +88,6 @@ static void shutdown() {
         SDL_DestroyWindow(gWindow);
         gWindow = nullptr;
     }
-#ifdef DISCORD_RPC_ENABLED
-    gDiscordRPC.shutdown();
-#endif
     SDL_Quit();
 }
 
@@ -269,9 +260,6 @@ int main(int argc, char** argv) {
     }
 
     initImGui();
-#ifdef DISCORD_RPC_ENABLED
-    gDiscordRPC.init("1522995132079804446");
-#endif
     Uint64 lastTime = SDL_GetPerformanceCounter();
     while (gRunning) {
         SDL_Event event;
@@ -332,41 +320,6 @@ int main(int argc, char** argv) {
         ImGui::NewFrame();
         gAudioEngine.setProject(&gAppState.project);
         appRender(gAppState, deltaTime);
-#ifdef DISCORD_RPC_ENABLED
-        {
-            std::string stateStr;
-            const char* smallKey = nullptr;
-            const char* smallText = nullptr;
-            auto ts = gAppState.transport.state.load();
-            int playHead = gAppState.transport.playHead.load();
-            float bpm = gAppState.project.bpm;
-            int ticksPerBar = gAppState.project.ticksPerBar();
-            int ppq = gAppState.project.ppq;
-            int bar = ticksPerBar > 0 ? playHead / ticksPerBar : 0;
-            int beat = ticksPerBar > 0 ? (playHead % ticksPerBar) / ppq : 0;
-            int tick = ppq > 0 ? playHead % ppq : 0;
-            int numChannels = (int)gAppState.project.channels.size();
-
-            if (ts == TransportState::Playing) {
-                char buf[128];
-                snprintf(buf, sizeof(buf), "Playing · %.0f BPM · Bar %d · %d.%d.%03d", bpm, bar + 1, bar + 1, beat + 1, tick);
-                stateStr = buf;
-                smallKey = "play";
-                smallText = "Playing";
-            } else if (ts == TransportState::Paused) {
-                char buf[128];
-                snprintf(buf, sizeof(buf), "Paused · Bar %d · %d.%d.%03d", bar + 1, bar + 1, beat + 1, tick);
-                stateStr = buf;
-                smallKey = "pause";
-                smallText = "Paused";
-            } else {
-                char buf[128];
-                snprintf(buf, sizeof(buf), "Editing · %d channel%s", numChannels, numChannels == 1 ? "" : "s");
-                stateStr = buf;
-            }
-            gDiscordRPC.update(stateStr.c_str(), gAppState.project.name.c_str(), smallKey, smallText, numChannels, 8);
-        }
-#endif
         if (gAppState.actionOpen) {
             gAppState.actionOpen = false;
             handleFileOpen();

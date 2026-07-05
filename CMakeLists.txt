@@ -50,13 +50,11 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(nlohmann_json)
 find_package(OpenGL REQUIRED)
-option(DISCORD_RPC "Enable Discord Rich Presence" ON)
 add_executable(neodaw
   src/main.cpp
   src/App.cpp
   src/AudioEngine.cpp
   src/Project.cpp
-  src/DiscordRPC.cpp
   ${imgui_SOURCE_DIR}/imgui.cpp
   ${imgui_SOURCE_DIR}/imgui_draw.cpp
   ${imgui_SOURCE_DIR}/imgui_tables.cpp
@@ -80,10 +78,6 @@ target_link_libraries(neodaw PRIVATE
   midifile
   nlohmann_json::nlohmann_json
 )
-
-if(DISCORD_RPC)
-  target_compile_definitions(neodaw PRIVATE DISCORD_RPC_ENABLED)
-endif()
 
 if(UNIX)
   target_link_libraries(neodaw PRIVATE m)
