@@ -71,4 +71,4 @@ jobs:
             ${{ steps.strings.outputs.build-output-dir }}/*.so
             ${{ steps.strings.outputs.build-output-dir }}/Release/*.dll
             ${{ steps.strings.outputs.build-output-dir }}/Debug/*.dll
-          if-no-files-found: warning
+          if-no-files-found: warn
