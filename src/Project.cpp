@@ -1,21 +1,23 @@
 #include "Project.h"
 #include <MidiFile.h>
-#include "dr_wav.h"
+#include <juce_audio_basics/juce_audio_basics.h>
+#include <juce_audio_formats/juce_audio_formats.h>
 #include <cstdint>
 #include <algorithm>
 #include <cstring>
 #include <cmath>
 static bool writeWAV(const std::string& path, const float* samples, size_t numFrames, int sampleRate, int numChannels) {
-    drwav_data_format df;
-    df.container = drwav_container_riff;
-    df.format = DR_WAVE_FORMAT_IEEE_FLOAT;
-    df.channels = numChannels;
-    df.sampleRate = sampleRate;
-    df.bitsPerSample = 32;
-    drwav w;
-    if (!drwav_init_file_write(&w, path.c_str(), &df, NULL)) return false;
-    drwav_write_pcm_frames(&w, numFrames, samples);
-    drwav_uninit(&w);
+    auto file = juce::File(path);
+    file.deleteFile();
+    auto outputStream = file.createOutputStream();
+    if (!outputStream) return false;
+    juce::WavAudioFormat wavFormat;
+    auto* writer = wavFormat.createWriterFor(outputStream.release(), (double)sampleRate, numChannels, 24, {}, 0);
+    if (!writer) return false;
+    juce::AudioBuffer<float> buffer(numChannels, (int)numFrames);
+    for (int ch = 0; ch < numChannels; ch++) buffer.copyFrom(ch, 0, samples + ch, numChannels, (int)numFrames);
+    writer->writeFromAudioSampleBuffer(buffer, 0, (int)numFrames);
+    delete writer;
     return true;
 }
 

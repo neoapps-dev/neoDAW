@@ -1,21 +1,55 @@
-#define DR_WAV_IMPLEMENTATION
-#include "dr_wav.h"
 #include "AudioEngine.h"
 #include <cstring>
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
-#include <SDL.h>
 #include <cstdio>
-static bool loadWavFile(const std::string& path, SampleData& sd) {
-    drwav wav;
-    if (!drwav_init_file(&wav, path.c_str(), NULL)) return false;
-    sd.samples.resize((size_t)wav.totalPCMFrameCount * wav.channels);
-    drwav_read_pcm_frames_f32(&wav, wav.totalPCMFrameCount, sd.samples.data());
-    sd.sampleRate = wav.sampleRate;
-    sd.numChannels = wav.channels;
+bool AudioEngine::loadWavFile(const std::string& path, SampleData& sd) {
+    auto file = juce::File(path);
+    if (!file.existsAsFile()) return false;
+    juce::AudioFormatManager formatManager;
+    formatManager.registerBasicFormats();
+    auto reader = std::unique_ptr<juce::AudioFormatReader>(formatManager.createReaderFor(file));
+    if (!reader) return false;
+    sd.sampleRate = (int)reader->sampleRate;
+    sd.numChannels = (int)reader->numChannels;
+    int numFrames = (int)reader->lengthInSamples;
+    sd.samples.resize((size_t)numFrames * sd.numChannels);
+    juce::AudioBuffer<float> tempBuf(sd.numChannels, numFrames);
+    reader->read(&tempBuf, 0, numFrames, 0, true, true);
+    for (int ch = 0; ch < sd.numChannels; ch++) for (int s = 0; s < numFrames; s++) sd.samples[(size_t)s * sd.numChannels + ch] = tempBuf.getSample(ch, s);
     sd.loaded = true;
-    drwav_uninit(&wav);
+    return true;
+}
+
+bool AudioEngine::writeWavToFile(const std::string& path, const float* interleavedData, int numFrames, int numChannels, int sampleRate) {
+    FILE* f = fopen(path.c_str(), "wb");
+    if (!f) return false;
+    int bitsPerSample = 24;
+    int bytesPerSample = bitsPerSample / 8;
+    int dataSize = numFrames * numChannels * bytesPerSample;
+    int chunkSize = 36 + dataSize;
+    uint32_t hdr[11];
+    memcpy(hdr, "RIFF", 4); hdr[1] = (uint32_t)chunkSize;
+    memcpy(&hdr[2], "WAVEfmt ", 8); hdr[4] = 16; hdr[5] = (uint32_t)(1 | (numChannels << 16));
+    hdr[6] = (uint32_t)sampleRate;
+    hdr[7] = (uint32_t)(sampleRate * numChannels * bytesPerSample);
+    hdr[8] = (uint32_t)((numChannels * bytesPerSample) | (bitsPerSample << 16));
+    memcpy(&hdr[9], "data", 4); hdr[10] = (uint32_t)dataSize;
+    fwrite(hdr, 44, 1, f);
+    std::vector<uint8_t> buf(65536 * 3);
+    size_t bufPos = 0;
+    for (int i = 0; i < numFrames * numChannels; i++) {
+        int s = (int)(interleavedData[i] * 8388607.0f);
+        if (s > 8388607) s = 8388607;
+        else if (s < -8388608) s = -8388608;
+        buf[bufPos++] = (uint8_t)(s & 0xFF);
+        buf[bufPos++] = (uint8_t)((s >> 8) & 0xFF);
+        buf[bufPos++] = (uint8_t)((s >> 16) & 0xFF);
+        if (bufPos >= buf.size()) { fwrite(buf.data(), 1, bufPos, f); bufPos = 0; }
+    }
+    if (bufPos > 0) fwrite(buf.data(), 1, bufPos, f);
+    fclose(f);
     return true;
 }
 
@@ -25,38 +59,20 @@ bool AudioEngine::init(const AudioSettings& settings) {
     if (initialized) return true;
     sampleRate = settings.sampleRate;
     numChannels = settings.numChannels;
-    SDL_AudioSpec want;
-    SDL_zero(want);
-    want.freq = sampleRate;
-    want.format = AUDIO_F32;
-    want.channels = numChannels;
-    want.samples = settings.bufferSize;
-    want.callback = audioCallback;
-    want.userdata = this;
-    SDL_AudioSpec have;
-    audioDevice = SDL_OpenAudioDevice(nullptr, 0, &want, &have, SDL_AUDIO_ALLOW_FREQUENCY_CHANGE | SDL_AUDIO_ALLOW_CHANNELS_CHANGE);
-    if (audioDevice == 0) {
-        fprintf(stderr, "SDL_OpenAudioDevice failed: %s\n", SDL_GetError());
+    audioDeviceManager = std::make_unique<juce::AudioDeviceManager>();
+    juce::String error = audioDeviceManager->initialise(0, numChannels, nullptr, true);
+    if (error.isNotEmpty()) {
+        fprintf(stderr, "JUCE audio init failed: %s\n", error.toRawUTF8());
+        audioDeviceManager.reset();
         return false;
     }
-
-    if (have.format != AUDIO_F32) {
-        fprintf(stderr, "SDL audio device returned format 0x%x, AUDIO_F32 required\n", have.format);
-        SDL_CloseAudioDevice(audioDevice);
-        audioDevice = 0;
-        return false;
-    }
-
-    sampleRate = have.freq;
-    numChannels = have.channels;
     fluidSettings = new_fluid_settings();
     if (fluidSettings) {
         fluid_set_log_function(FLUID_WARN, NULL, NULL);
         fluid_set_log_function(FLUID_INFO, NULL, NULL);
         fluidSynth = new_fluid_synth(fluidSettings);
     }
-
-    SDL_PauseAudioDevice(audioDevice, 0);
+    audioDeviceManager->addAudioCallback(this);
     initialized = true;
     return true;
 }
@@ -65,11 +81,43 @@ void AudioEngine::shutdown() {
     if (fluidSynth) { delete_fluid_synth(fluidSynth); fluidSynth = nullptr; }
     if (fluidSettings) { delete_fluid_settings(fluidSettings); fluidSettings = nullptr; }
     fluidSfontId = -1;
-    if (audioDevice != 0) {
-        SDL_CloseAudioDevice(audioDevice);
-        audioDevice = 0;
+    if (audioDeviceManager) {
+        audioDeviceManager->removeAudioCallback(this);
+        audioDeviceManager->closeAudioDevice();
+        audioDeviceManager.reset();
     }
     initialized = false;
+}
+
+void AudioEngine::audioDeviceAboutToStart(juce::AudioIODevice* device) {
+    if (device) {
+        sampleRate = (int)device->getCurrentSampleRate();
+    }
+}
+
+void AudioEngine::audioDeviceStopped() {}
+void AudioEngine::audioDeviceIOCallbackWithContext(const float* const*, int, float* const* outputChannelData, int numOutputChannels, int numSamples, const juce::AudioIODeviceCallbackContext&) {
+    if (numOutputChannels < 1 || numSamples <= 0) return;
+    size_t totalSamples = (size_t)numSamples * (size_t)numOutputChannels;
+    std::vector<float> temp(totalSamples, 0.0f);
+    render(temp.data(), (unsigned int)numSamples);
+    for (int ch = 0; ch < numOutputChannels; ch++) {
+        int c = std::min(ch, numChannels - 1);
+        for (int s = 0; s < numSamples; s++) outputChannelData[ch][s] = temp[(size_t)s * numOutputChannels + c];
+    }
+    if (previewMutex.try_lock()) {
+        float previewBuf[4096];
+        int prevFrames = std::min(numSamples, (int)(sizeof(previewBuf) / sizeof(float) / numOutputChannels));
+        if (prevFrames > 0) {
+            std::memset(previewBuf, 0, (size_t)prevFrames * numOutputChannels * sizeof(float));
+            previewSynth.render(previewBuf, prevFrames, numOutputChannels, (float)sampleRate, 0, 999999, 120, 480);
+            for (int ch = 0; ch < numOutputChannels; ch++) {
+                int c = std::min(ch, numChannels - 1);
+                for (int s = 0; s < prevFrames; s++) outputChannelData[ch][s] += previewBuf[(size_t)s * numOutputChannels + c];
+            }
+        }
+        previewMutex.unlock();
+    }
 }
 
 void AudioEngine::startPlayback() {
@@ -78,6 +126,7 @@ void AudioEngine::startPlayback() {
     activeNotes.clear();
     clipRenderStates.clear();
     playHead.store(0);
+    tickRemainder = 0.0;
     lastMetronomeBeat = -1;
     metronomeClickSampleRemaining = 0;
     previewSample.playPos.store(-1.0);
@@ -96,6 +145,7 @@ void AudioEngine::stopPlayback() {
     if (!transport) return;
     transport->state.store(TransportState::Stopped);
     playHead.store(0);
+    tickRemainder = 0.0;
     playbackTime = 0.0;
     lastMetronomeBeat = -1;
     metronomeClickSampleRemaining = 0;
@@ -134,6 +184,7 @@ void AudioEngine::pausePlayback() {
             for (auto& s : synthPool) s.forceReset();
             activeNotes.clear();
             clipRenderStates.clear();
+            tickRemainder = 0.0;
         }
         transport->state.store(TransportState::Playing);
     }
@@ -254,16 +305,15 @@ bool AudioEngine::debugRenderToWav(const Project& proj, const Transport& trans, 
     playHead.store(0);
     activeNotes.clear();
     bpm.store(proj.bpm);
-    bool wasPlaying = audioDevice != 0 && SDL_GetAudioDeviceStatus(audioDevice) == SDL_AUDIO_PLAYING;
-    if (wasPlaying) SDL_PauseAudioDevice(audioDevice, 1);
+    bool wasPlaying = audioDeviceManager && audioDeviceManager->getCurrentAudioDevice() != nullptr;
+    if (wasPlaying) audioDeviceManager->removeAudioCallback(this);
     const int chunkSize = 512;
     while (frameIdx < numFrames) {
         int todo = std::min(chunkSize, numFrames - frameIdx);
         render(mix.data() + (size_t)frameIdx * numChannels, (unsigned int)todo);
         frameIdx += todo;
     }
-
-    if (wasPlaying) SDL_PauseAudioDevice(audioDevice, 0);
+    if (wasPlaying) audioDeviceManager->addAudioCallback(this);
     transport->state.store(TransportState::Stopped);
     project = saveProject;
     transport = saveTransport;
@@ -271,18 +321,7 @@ bool AudioEngine::debugRenderToWav(const Project& proj, const Transport& trans, 
         if (s > 1.0f) s = 1.0f;
         else if (s < -1.0f) s = -1.0f;
     }
-
-    drwav_data_format df;
-    df.container = drwav_container_riff;
-    df.format = DR_WAVE_FORMAT_IEEE_FLOAT;
-    df.channels = numChannels;
-    df.sampleRate = sampleRate;
-    df.bitsPerSample = 32;
-    drwav w;
-    if (!drwav_init_file_write(&w, path, &df, NULL)) return false;
-    drwav_write_pcm_frames(&w, mix.size() / numChannels, mix.data());
-    drwav_uninit(&w);
-    return true;
+    return writeWavToFile(path, mix.data(), numFrames, numChannels, sampleRate);
 }
 
 bool AudioEngine::renderToWav(const Project& proj, const Transport& trans, const char* path, int outSampleRate) {
@@ -304,23 +343,19 @@ bool AudioEngine::renderToWav(const Project& proj, const Transport& trans, const
     transport->state.store(TransportState::Playing);
     transport->playHead.store(0);
     for (auto& s : synthPool) s.forceReset();
-    if (fluidSynth) {
-        for (int c = 0; c < 16; c++) {
-            fluid_synth_cc(fluidSynth, c, 123, 0);
-        }
-    }
     playHead.store(0);
+    tickRemainder = 0.0;
     activeNotes.clear();
     bpm.store(proj.bpm);
-    bool wasPlaying = audioDevice != 0 && SDL_GetAudioDeviceStatus(audioDevice) == SDL_AUDIO_PLAYING;
-    if (wasPlaying) SDL_PauseAudioDevice(audioDevice, 1);
+    bool wasPlaying = audioDeviceManager && audioDeviceManager->getCurrentAudioDevice() != nullptr;
+    if (wasPlaying) audioDeviceManager->removeAudioCallback(this);
     const int chunkSize = 512;
     while (frameIdx < numFrames) {
         int todo = std::min(chunkSize, numFrames - frameIdx);
         render(mix.data() + (size_t)frameIdx * numChannels, (unsigned int)todo);
         frameIdx += todo;
     }
-    if (wasPlaying) SDL_PauseAudioDevice(audioDevice, 0);
+    if (wasPlaying) audioDeviceManager->addAudioCallback(this);
     transport->state.store(TransportState::Stopped);
     sampleRate = saveSampleRate;
     project = saveProject;
@@ -329,17 +364,7 @@ bool AudioEngine::renderToWav(const Project& proj, const Transport& trans, const
         if (s > 1.0f) s = 1.0f;
         else if (s < -1.0f) s = -1.0f;
     }
-    drwav_data_format df;
-    df.container = drwav_container_riff;
-    df.format = DR_WAVE_FORMAT_IEEE_FLOAT;
-    df.channels = numChannels;
-    df.sampleRate = outSampleRate;
-    df.bitsPerSample = 32;
-    drwav w;
-    if (!drwav_init_file_write(&w, path, &df, NULL)) return false;
-    drwav_write_pcm_frames(&w, mix.size() / numChannels, mix.data());
-    drwav_uninit(&w);
-    return true;
+    return writeWavToFile(path, mix.data(), numFrames, numChannels, outSampleRate);
 }
 
 bool AudioEngine::debugRenderFreshToWav(const Project& proj, const Transport& trans, const char* path) {
@@ -352,6 +377,7 @@ bool AudioEngine::debugRenderFreshToWav(const Project& proj, const Transport& tr
     if (numFrames <= 0) return false;
     std::vector<float> mix((size_t)numFrames * numChannels, 0.0f);
     Synthesizer freshSynth;
+    if (proj.patterns.empty()) return false;
     int selPat = proj.selectedPattern;
     if (selPat < 0 || selPat >= (int)proj.patterns.size()) selPat = 0;
     auto& pattern = proj.patterns[selPat];
@@ -367,8 +393,9 @@ bool AudioEngine::debugRenderFreshToWav(const Project& proj, const Transport& tr
     freshSynth.filterType = ch.filterType;
     freshSynth.volume = ch.volume;
     freshSynth.pan = ch.pan;
-    int currentTick = 0;
     int processedFrames = 0;
+    double preciseTick = 0.0;
+    int currentTick = 0;
     float ticksPerFrame = proj.bpm * proj.ppq / (60.0f * sampleRate);
     std::vector<int> activeKeys;
     while (processedFrames < numFrames) {
@@ -400,7 +427,7 @@ bool AudioEngine::debugRenderFreshToWav(const Project& proj, const Transport& tr
 
         freshSynth.render(temp, chunkFrames, numChannels, (float)sampleRate, currentTick, pattern.lengthTicks, proj.bpm, proj.ppq);
         for (int f = 0; f < chunkFrames * numChannels; f++) mix[(size_t)processedFrames * numChannels + f] += temp[f];
-        currentTick += (int)(chunkFrames * ticksPerFrame);
+        currentTick = (int)preciseTick;
         processedFrames += chunkFrames;
     }
 
@@ -409,17 +436,7 @@ bool AudioEngine::debugRenderFreshToWav(const Project& proj, const Transport& tr
         else if (s < -1.0f) s = -1.0f;
     }
 
-    drwav_data_format df;
-    df.container = drwav_container_riff;
-    df.format = DR_WAVE_FORMAT_IEEE_FLOAT;
-    df.channels = numChannels;
-    df.sampleRate = sampleRate;
-    df.bitsPerSample = 32;
-    drwav w;
-    if (!drwav_init_file_write(&w, path, &df, NULL)) return false;
-    drwav_write_pcm_frames(&w, mix.size() / numChannels, mix.data());
-    drwav_uninit(&w);
-    return true;
+    return writeWavToFile(path, mix.data(), numFrames, numChannels, sampleRate);
 }
 
 bool AudioEngine::debugRenderPoolFreshLoop(const Project& proj, const Transport& trans, const char* path) {
@@ -430,17 +447,18 @@ bool AudioEngine::debugRenderPoolFreshLoop(const Project& proj, const Transport&
     double totalSec = totalTicks * secPerTick;
     int numFrames = (int)(totalSec * sampleRate);
     if (numFrames <= 0) return false;
-    bool wasPlaying = audioDevice != 0 && SDL_GetAudioDeviceStatus(audioDevice) == SDL_AUDIO_PLAYING;
-    if (wasPlaying) SDL_PauseAudioDevice(audioDevice, 1);
+    bool wasPlaying = audioDeviceManager && audioDeviceManager->getCurrentAudioDevice() != nullptr;
+    if (wasPlaying) audioDeviceManager->removeAudioCallback(this);
     std::vector<float> mix((size_t)numFrames * numChannels, 0.0f);
     for (auto& s : synthPool) s.forceReset();
+    if (proj.patterns.empty()) { if (wasPlaying) audioDeviceManager->addAudioCallback(this); return false; }
     int selPat = proj.selectedPattern;
     if (selPat < 0 || selPat >= (int)proj.patterns.size()) selPat = 0;
     auto& pattern = proj.patterns[selPat];
     int chanIdx = pattern.channelIndex;
-    if (chanIdx < 0 || chanIdx >= 16) { if (wasPlaying) SDL_PauseAudioDevice(audioDevice, 0); return false; }
+    if (chanIdx < 0 || chanIdx >= 16) { if (wasPlaying) audioDeviceManager->addAudioCallback(this); return false; }
     auto& ch = proj.channels[chanIdx];
-    if (ch.muted) { if (wasPlaying) SDL_PauseAudioDevice(audioDevice, 0); return false; }
+    if (ch.muted) { if (wasPlaying) audioDeviceManager->addAudioCallback(this); return false; }
     EnvelopeParams env{ch.attack, ch.decay, ch.sustain, ch.release};
     synthPool[chanIdx].setEnvelope(env);
     synthPool[chanIdx].waveform = ch.waveform;
@@ -449,8 +467,9 @@ bool AudioEngine::debugRenderPoolFreshLoop(const Project& proj, const Transport&
     synthPool[chanIdx].filterType = ch.filterType;
     synthPool[chanIdx].volume = ch.volume;
     synthPool[chanIdx].pan = ch.pan;
-    int currentTick = 0;
     int processedFrames = 0;
+    double preciseTick = 0.0;
+    int currentTick = 0;
     float ticksPerFrame = proj.bpm * proj.ppq / (60.0f * sampleRate);
     std::vector<int> activeKeys;
     while (processedFrames < numFrames) {
@@ -482,27 +501,18 @@ bool AudioEngine::debugRenderPoolFreshLoop(const Project& proj, const Transport&
 
         synthPool[chanIdx].render(temp, chunkFrames, numChannels, (float)sampleRate, currentTick, pattern.lengthTicks, proj.bpm, proj.ppq);
         for (int f = 0; f < chunkFrames * numChannels; f++) mix[(size_t)processedFrames * numChannels + f] += temp[f];
-        currentTick += (int)(chunkFrames * ticksPerFrame);
+        preciseTick += chunkFrames * ticksPerFrame;
+        currentTick = (int)preciseTick;
         processedFrames += chunkFrames;
     }
 
-    if (wasPlaying) SDL_PauseAudioDevice(audioDevice, 0);
+    if (wasPlaying) audioDeviceManager->addAudioCallback(this);
     for (auto& s : mix) {
         if (s > 1.0f) s = 1.0f;
         else if (s < -1.0f) s = -1.0f;
     }
 
-    drwav_data_format df;
-    df.container = drwav_container_riff;
-    df.format = DR_WAVE_FORMAT_IEEE_FLOAT;
-    df.channels = numChannels;
-    df.sampleRate = sampleRate;
-    df.bitsPerSample = 32;
-    drwav w;
-    if (!drwav_init_file_write(&w, path, &df, NULL)) return false;
-    drwav_write_pcm_frames(&w, mix.size() / numChannels, mix.data());
-    drwav_uninit(&w);
-    return true;
+    return writeWavToFile(path, mix.data(), numFrames, numChannels, sampleRate);
 }
 
 bool AudioEngine::debugRenderEngineSingleToWav(const Project& proj, const Transport& trans, const char* path) {
@@ -524,8 +534,8 @@ bool AudioEngine::debugRenderEngineSingleToWav(const Project& proj, const Transp
     for (auto& s : synthPool) s.forceReset();
     playHead.store(0);
     activeNotes.clear();
-    bool wasPlaying = audioDevice != 0 && SDL_GetAudioDeviceStatus(audioDevice) == SDL_AUDIO_PLAYING;
-    if (wasPlaying) SDL_PauseAudioDevice(audioDevice, 1);
+    bool wasPlaying = audioDeviceManager && audioDeviceManager->getCurrentAudioDevice() != nullptr;
+    if (wasPlaying) audioDeviceManager->removeAudioCallback(this);
     double currentPlayHead = 0.0;
     float currentBPM = proj.bpm;
     int ppq = proj.ppq;
@@ -604,7 +614,7 @@ bool AudioEngine::debugRenderEngineSingleToWav(const Project& proj, const Transp
         processedFrames += framesToProcess;
     }
 
-    if (wasPlaying) SDL_PauseAudioDevice(audioDevice, 0);
+    if (wasPlaying) audioDeviceManager->addAudioCallback(this);
     transport->state.store(TransportState::Stopped);
     project = saveProject;
     transport = saveTransport;
@@ -613,39 +623,7 @@ bool AudioEngine::debugRenderEngineSingleToWav(const Project& proj, const Transp
         else if (s < -1.0f) s = -1.0f;
     }
 
-    drwav_data_format df;
-    df.container = drwav_container_riff;
-    df.format = DR_WAVE_FORMAT_IEEE_FLOAT;
-    df.channels = numChannels;
-    df.sampleRate = sampleRate;
-    df.bitsPerSample = 32;
-    drwav w;
-    if (!drwav_init_file_write(&w, path, &df, NULL)) return false;
-    drwav_write_pcm_frames(&w, mix.size() / numChannels, mix.data());
-    drwav_uninit(&w);
-    return true;
-}
-
-void AudioEngine::audioCallback(void* userdata, Uint8* stream, int len) {
-    auto* engine = (AudioEngine*)userdata;
-    if (!engine) return;
-    int nc = engine->numChannels;
-    if (nc < 1 || nc > 8) { std::memset(stream, 0, (size_t)len); return; }
-    int frameCount = len / (int)(nc * sizeof(float));
-    if (frameCount <= 0 || frameCount > 8192) { std::memset(stream, 0, (size_t)len); return; }
-    std::memset(stream, 0, (size_t)len);
-    engine->render((float*)stream, (unsigned int)frameCount);
-    if (engine->previewMutex.try_lock()) {
-        float previewBuf[4096];
-        int prevFrames = std::min(frameCount, (int)(sizeof(previewBuf) / sizeof(float) / nc));
-        if (prevFrames > 0) {
-            std::memset(previewBuf, 0, (size_t)prevFrames * nc * sizeof(float));
-            engine->previewSynth.render(previewBuf, prevFrames, nc, (float)engine->sampleRate, 0, 999999, 120, 480);
-            float* out = (float*)stream;
-            for (int i = 0; i < prevFrames * nc; i++) out[i] += previewBuf[i];
-        }
-        engine->previewMutex.unlock();
-    }
+    return writeWavToFile(path, mix.data(), numFrames, numChannels, sampleRate);
 }
 
 void AudioEngine::render(float* output, unsigned int frameCount) {
@@ -668,6 +646,7 @@ void AudioEngine::render(float* output, unsigned int frameCount) {
         }
     }
     int currentTick = playHead.load();
+    double preciseTick = (double)currentTick + tickRemainder;
     float currentBPM = project->bpm;
     int ppq = project->ppq;
     float ticksPerFrame = currentBPM * (float)ppq / (60.0f * sampleRate);
@@ -744,11 +723,10 @@ void AudioEngine::render(float* output, unsigned int frameCount) {
     };
 
     auto resetAll = [&]() {
-        for (auto& s : synthPool) s.cutAllVoices();
+        for (auto& s : synthPool) s.allNotesOff();
         if (fluidSynth) {
             for (int c = 0; c < 16; c++) {
                 fluid_synth_cc(fluidSynth, c, 120, 0);
-                fluid_synth_cc(fluidSynth, c, 123, 0);
             }
         }
         activeNotes.clear();
@@ -871,13 +849,21 @@ void AudioEngine::render(float* output, unsigned int frameCount) {
                             double frameOffset = localSec * sd.sampleRate;
                             for (int f = 0; f < chunkFrames; f++) {
                                 double pos = std::fmod(frameOffset + f * sampleRateRatio, (double)playFrames);
-                                size_t frame = startFrame + (size_t)pos;
-                                if (frame >= endFrame) frame = startFrame;
-                                size_t sdi = frame * sdChan;
-                                float sv = sd.samples[sdi] * ch.volume * mixVol;
+                                size_t i0 = startFrame + (size_t)pos;
+                                size_t i1 = i0 + 1;
+                                if (i0 >= endFrame) i0 = startFrame;
+                                if (i1 >= endFrame) i1 = startFrame;
+                                double frac = pos - (double)(size_t)pos;
+                                size_t sdi0 = i0 * sdChan;
+                                size_t sdi1 = i1 * sdChan;
+                                float s0 = sd.samples[sdi0];
+                                float s1 = sd.samples[sdi1];
+                                float sv = (s0 + (float)frac * (s1 - s0)) * ch.volume * mixVol;
                                 output[processedFrames * numChannels + f * numChannels] += sv;
                                 if (numChannels > 1) {
-                                    float sr = sdChan > 1 ? sd.samples[sdi + 1] * ch.volume * mixVol : sv;
+                                    float sr0 = sdChan > 1 ? sd.samples[sdi0 + 1] : s0;
+                                    float sr1 = sdChan > 1 ? sd.samples[sdi1 + 1] : s1;
+                                    float sr = (sr0 + (float)frac * (sr1 - sr0)) * ch.volume * mixVol;
                                     output[processedFrames * numChannels + f * numChannels + 1] += sr;
                                 }
                             }
@@ -972,13 +958,21 @@ void AudioEngine::render(float* output, unsigned int frameCount) {
                                         double frameOffset = localSec * sd.sampleRate;
                                         for (int f = 0; f < chunkFrames; f++) {
                                             double pos = std::fmod(frameOffset + f * sampleRateRatio, (double)playFrames);
-                                            size_t frame = startFrame + (size_t)pos;
-                                            if (frame >= endFrame) frame = startFrame;
-                                            size_t sdi = frame * sdChan;
-                                            float sv = sd.samples[sdi] * ch.volume * mixVol;
+                                            size_t i0 = startFrame + (size_t)pos;
+                                            size_t i1 = i0 + 1;
+                                            if (i0 >= endFrame) i0 = startFrame;
+                                            if (i1 >= endFrame) i1 = startFrame;
+                                            double frac = pos - (double)(size_t)pos;
+                                            size_t sdi0 = i0 * sdChan;
+                                            size_t sdi1 = i1 * sdChan;
+                                            float s0 = sd.samples[sdi0];
+                                            float s1 = sd.samples[sdi1];
+                                            float sv = (s0 + (float)frac * (s1 - s0)) * ch.volume * mixVol;
                                             output[processedFrames * numChannels + f * numChannels] += sv;
                                             if (numChannels > 1) {
-                                                float sr = sdChan > 1 ? sd.samples[sdi + 1] * ch.volume * mixVol : sv;
+                                                float sr0 = sdChan > 1 ? sd.samples[sdi0 + 1] : s0;
+                                                float sr1 = sdChan > 1 ? sd.samples[sdi1 + 1] : s1;
+                                                float sr = (sr0 + (float)frac * (sr1 - sr0)) * ch.volume * mixVol;
                                                 output[processedFrames * numChannels + f * numChannels + 1] += sr;
                                             }
                                         }
@@ -1011,7 +1005,7 @@ void AudioEngine::render(float* output, unsigned int frameCount) {
             if (fluidSamples > 4096) fluidSamples = 4096;
             std::fill(fluidBuf, fluidBuf + fluidSamples, 0.0f);
             fluid_synth_write_float(fluidSynth, chunkFrames, fluidBuf, 0, numChannels, fluidBuf, 1, numChannels);
-            for (int f = 0; f < fluidSamples; f++)output[processedFrames * numChannels + f] += fluidBuf[f];
+            for (int f = 0; f < fluidSamples; f++) output[processedFrames * numChannels + f] += fluidBuf[f];
         }
 
         if (numChannels >= 2) {
@@ -1023,7 +1017,7 @@ void AudioEngine::render(float* output, unsigned int frameCount) {
                     lastMetronomeBeat = currentBeat;
                     int beatsPerBar = project->beatsPerBar;
                     metronomeClickFreq = ((currentBeat * ppq) % (ppq * beatsPerBar) == 0) ? 1200.0f : 800.0f;
-                    metronomeClickSampleRemaining = (int)(0.04f * sampleRate); //neo: 40ms
+                    metronomeClickSampleRemaining = (int)(0.04f * sampleRate);
                     metronomeClickPhase = 0.0f;
                     metronomeClickPhaseStep = (float)(2.0 * 3.14159265358979323846 * metronomeClickFreq / sampleRate);
                     metronomeClickDecayStep = 1.0f / metronomeClickSampleRemaining;
@@ -1240,15 +1234,18 @@ void AudioEngine::render(float* output, unsigned int frameCount) {
             }
         }
 
-        currentTick += (int)(chunkFrames * ticksPerFrame);
+        preciseTick += chunkFrames * ticksPerFrame;
+        currentTick = (int)preciseTick;
         processedFrames += chunkFrames;
         if (currentTick >= totalTicks) {
             if (transport->looping.load()) {
                 currentTick = 0;
+                preciseTick = 0.0;
                 resetAll();
             } else {
                 transport->state.store(TransportState::Stopped);
                 playHead.store(0);
+                tickRemainder = 0.0;
                 transport->playHead.store(0);
                 resetAll();
                 audioMutex.unlock();
@@ -1257,6 +1254,7 @@ void AudioEngine::render(float* output, unsigned int frameCount) {
         }
     }
 
+    tickRemainder = preciseTick - (double)currentTick;
     playHead.store(currentTick);
     transport->playHead.store(currentTick);
     audioMutex.unlock();

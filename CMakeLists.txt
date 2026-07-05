@@ -6,6 +6,17 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 include(FetchContent)
 #neo: sdl2
 find_package(SDL2 REQUIRED)
+#neo: juce
+FetchContent_Declare(
+  JUCE
+  GIT_REPOSITORY https://github.com/juce-framework/JUCE.git
+  GIT_TAG 8.0.6
+  GIT_SHALLOW TRUE
+)
+set(JUCE_BUILD_EXTRAS OFF CACHE BOOL "" FORCE)
+set(JUCE_BUILD_JUCEAIDE OFF CACHE BOOL "" FORCE)
+set(JUCE_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(JUCE)
 #neo: imgui
 FetchContent_Declare(
   imgui
@@ -71,12 +82,18 @@ target_include_directories(neodaw PRIVATE
   ${fluidlite_binary_DIR}
 )
 
+find_package(CURL REQUIRED)
 target_link_libraries(neodaw PRIVATE
   SDL2::SDL2
   OpenGL::GL
   fluidlite-static
   midifile
   nlohmann_json::nlohmann_json
+  juce::juce_audio_basics
+  juce::juce_audio_devices
+  juce::juce_audio_formats
+  juce::juce_core
+  CURL::libcurl
 )
 
 if(UNIX)

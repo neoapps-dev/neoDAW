@@ -172,6 +172,7 @@ inline int Synthesizer::allocVoice() {
 
 inline void Synthesizer::noteOn(int note, float velocity, int startTick) {
     int idx = allocVoice();
+    if (voices[idx].active) voiceCount--;
     voices[idx].reset();
     voices[idx].active = true;
     voices[idx].note = note;

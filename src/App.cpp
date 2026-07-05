@@ -165,7 +165,7 @@ void toggleStep(AppState& state, int channelIdx, int stepIndex) {
     if (patIdx < 0) return;
     auto& pat = state.project.patterns[patIdx];
     int ppq = state.project.ppq;
-    int stepTicks = ppq / 4; // 16th note
+    int stepTicks = ppq / 4; //neo: 16th note
     int tickStart = stepIndex * stepTicks;
     int noteKey = state.stepSequencerKey;
     int existingIdx = -1;
@@ -339,14 +339,16 @@ bool appLoadProject(AppState& state, const char* path) {
                 }
             }
 
+            int loadedSfontId = -1;
             for (size_t i = 0; i < state.project.channels.size(); i++) {
                 auto& ch = state.project.channels[i];
                 if (ch.useSF2 && !ch.sf2Path.empty()) {
-                    int sfontId = state.engine->loadSFont(ch.sf2Path);
-                    if (sfontId >= 0) {
-                        state.engine->selectSFontPreset(sfontId, 0, ch.sf2Preset, (int)i);
+                    if (loadedSfontId < 0) {
+                        loadedSfontId = state.engine->loadSFont(ch.sf2Path);
                     }
-                    break;
+                    if (loadedSfontId >= 0) {
+                        state.engine->selectSFontPreset(loadedSfontId, 0, ch.sf2Preset, (int)i);
+                    }
                 }
             }
             state.engine->unlockAudio();
@@ -745,7 +747,7 @@ void renderChannelRack(AppState& state) {
     const float stepBtnSize = 22.0f;
     const float channelNameW = 130.0f;
     int ppq = state.project.ppq;
-    int stepTicks = ppq / 4;  // 16th note
+    int stepTicks = ppq / 4;  //neo: 16th note
     const ImU32 COL_STEP_OFF_A = IM_COL32(70, 50, 40, 255);
     const ImU32 COL_STEP_OFF_B = IM_COL32(55, 55, 60, 255);
     const ImU32 COL_STEP_ON    = IM_COL32(255, 160, 30, 255);
@@ -1140,7 +1142,7 @@ void renderPianoRoll(AppState& state) {
                 if (relY >= laneTopRel && relY <= laneBottomRel) {
                 if (ImGui::IsMouseDown(0)) {
                     int closestNote = -1;
-                    float minDist = 15.0f; // tolerance of 15 pixels
+                    float minDist = 15.0f; //neo: tolerance of 15 pixels
                     for (int ni = 0; ni < (int)pattern.notes.size(); ni++) {
                         auto& note = pattern.notes[ni];
                         float nx = childPos.x + keyWidth + note.start * zoomX / (float)ppq;

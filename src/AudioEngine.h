@@ -9,7 +9,9 @@
 #include <functional>
 #include <cstdint>
 #include <map>
-#include <SDL.h>
+#include <juce_audio_basics/juce_audio_basics.h>
+#include <juce_audio_devices/juce_audio_devices.h>
+#include <juce_audio_formats/juce_audio_formats.h>
 #include <fluidlite.h>
 struct ClipRenderState {
     std::vector<int> activeNotes;
@@ -22,7 +24,7 @@ struct SampleData {
     bool loaded = false;
 };
 
-class AudioEngine {
+class AudioEngine : public juce::AudioIODeviceCallback {
 public:
     AudioEngine();
     ~AudioEngine();
@@ -68,12 +70,19 @@ public:
     void playSamplePreview(const std::string& path);
 
 private:
-    static void audioCallback(void* userdata, Uint8* stream, int len);
+    void audioDeviceIOCallbackWithContext(const float* const* inputChannelData, int numInputChannels,
+                                          float* const* outputChannelData, int numOutputChannels,
+                                          int numSamples,
+                                          const juce::AudioIODeviceCallbackContext& context) override;
+    void audioDeviceAboutToStart(juce::AudioIODevice* device) override;
+    void audioDeviceStopped() override;
     void render(float* output, unsigned int frameCount);
+    static bool loadWavFile(const std::string& path, SampleData& sd);
+    static bool writeWavToFile(const std::string& path, const float* interleavedData, int numFrames, int numChannels, int sampleRate);
     Project* project = nullptr;
     Transport* transport = nullptr;
     bool initialized = false;
-    SDL_AudioDeviceID audioDevice = 0;
+    std::unique_ptr<juce::AudioDeviceManager> audioDeviceManager;
     std::atomic<int> playHead{0};
     std::atomic<float> bpm{130.0f};
     std::mutex audioMutex;
@@ -86,6 +95,7 @@ private:
     int sampleRate = 44100;
     int numChannels = 2;
     double playbackTime = 0.0;
+    double tickRemainder = 0.0;
     std::atomic<float> masterVolume{1.0f};
     Synthesizer previewSynth;
     std::mutex previewMutex;
@@ -100,7 +110,7 @@ private:
     float metronomeClickFreq = 800.0f;
     float metronomeClickPhaseStep = 0.0f;
     float metronomeClickDecayStep = 0.0f;
-    static constexpr int MAX_DELAY_SAMPLES = 88200; //neo: 2s * 44100
+    static constexpr int MAX_DELAY_SAMPLES = 88200;
     struct DelayLine {
         std::vector<float> bufferL;
         std::vector<float> bufferR;
@@ -140,7 +150,7 @@ private:
     bool mixerFiltersInit = false;
     struct MasterLimiter {
         float gain = 1.0f;
-        float threshold = 0.95f;     //neo: -0.5 dB
+        float threshold = 0.95f;
         float releaseCoeff = 0.998f;
         void process(float& l, float& r) {
             float peak = std::max(std::abs(l), std::abs(r));
@@ -166,7 +176,7 @@ private:
         std::vector<float> samples;
         int numChannels = 1;
         double sampleRate = 44100.0;
-        std::atomic<double> playPos{-1.0}; //neo: idle
+        std::atomic<double> playPos{-1.0};
     };
     PreviewSampleState previewSample;
     std::mutex previewSampleMutex;

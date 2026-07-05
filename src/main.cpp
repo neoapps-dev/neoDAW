@@ -20,7 +20,7 @@ static AppState gAppState;
 static AudioEngine gAudioEngine;
 static bool gRunning = true;
 static bool initSDL() {
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_AUDIO) != 0) {
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) {
         fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
         return false;
     }
@@ -240,6 +240,36 @@ int main(int argc, char** argv) {
     gAppState.engine = &gAudioEngine;
     if (argc > 1 && strcmp(argv[1], "--render-debug") == 0) {
         if (argc > 2) appLoadProject(gAppState, argv[2]);
+        fprintf(stderr, "project.bpm=%.1f ppq=%d beatsPerBar=%d\n", gAppState.project.bpm, gAppState.project.ppq, gAppState.project.beatsPerBar);
+        fprintf(stderr, "patterns=%zu channels=%zu playlist=%zu selectedPattern=%d\n",
+                gAppState.project.patterns.size(), gAppState.project.channels.size(),
+                gAppState.project.playlist.size(), gAppState.project.selectedPattern);
+        for (size_t i = 0; i < gAppState.project.patterns.size(); i++) {
+            auto& p = gAppState.project.patterns[i];
+            fprintf(stderr, "  pattern[%zu]: name=%s notes=%zu lengthTicks=%d chanIdx=%d\n", i, p.name.c_str(), p.notes.size(), p.lengthTicks, p.channelIndex);
+        }
+        for (size_t i = 0; i < gAppState.project.channels.size(); i++) {
+            auto& c = gAppState.project.channels[i];
+            fprintf(stderr, "  channel[%zu]: vol=%.2f pan=%.2f muted=%d useSF2=%d sf2Path=%s waveform=%d att=%.3f dec=%.3f sus=%.3f rel=%.3f\n",
+                    i, c.volume, c.pan, (int)c.muted, (int)c.useSF2, c.sf2Path.c_str(), (int)c.waveform,
+                    c.attack, c.decay, c.sustain, c.release);
+        }
+        for (size_t i = 0; i < gAppState.project.playlist.size(); i++) {
+            auto& cl = gAppState.project.playlist[i];
+            fprintf(stderr, "  clip[%zu]: patIdx=%d startTick=%d track=%d muted=%d\n",
+                    i, cl.patternIndex, cl.startTick, cl.track, (int)cl.muted);
+        }
+        for (size_t i = 0; i < gAppState.project.mixer.size(); i++) {
+            auto& m = gAppState.project.mixer[i];
+            fprintf(stderr, "  mixer[%zu]: vol=%.2f muted=%d\n", i, m.volume, (int)m.muted);
+        }
+        if (gAppState.project.selectedPattern >= 0 && (size_t)gAppState.project.selectedPattern < gAppState.project.patterns.size()) {
+            auto& pat = gAppState.project.patterns[gAppState.project.selectedPattern];
+            fprintf(stderr, "  selectedPattern[%d] first 3 notes: ", gAppState.project.selectedPattern);
+            for (int ni = 0; ni < std::min(3, (int)pat.notes.size()); ni++) fprintf(stderr, "{k=%d s=%d l=%d v=%d} ", pat.notes[ni].key, pat.notes[ni].start, pat.notes[ni].length, pat.notes[ni].velocity);
+            fprintf(stderr, "\n");
+        }
+        fprintf(stderr, "engine.initialized=%d\n", (int)gAudioEngine.isInitialized());
         gAudioEngine.debugRenderToWav(gAppState.project, gAppState.transport, "debug_engine.wav");
         gAudioEngine.debugRenderFreshToWav(gAppState.project, gAppState.transport, "debug_fresh.wav");
         gAudioEngine.debugRenderEngineSingleToWav(gAppState.project, gAppState.transport, "debug_single.wav");
