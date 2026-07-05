@@ -1762,20 +1762,18 @@ void renderPlaylist(AppState& state) {
 void renderMixer(AppState& state) {
     ImGui::Begin("Mixer", &state.showMixer, ImGuiWindowFlags_NoFocusOnAppearing);
     state.project.ensureMixerSlots();
-    float stripW = 80.0f;
+    float stripW = 95.0f;
     float stripH = ImGui::GetContentRegionAvail().y > 300 ? 300 : ImGui::GetContentRegionAvail().y;
     for (int m = 0; m < (int)state.project.mixer.size(); m++) {
         auto& slot = state.project.mixer[m];
         ImGui::BeginGroup();
         ImGui::PushID(m);
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8f,0.8f,0.8f,1));
         ImGui::Text("%s", slot.name.c_str());
-        ImGui::PopStyleColor();
         ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.15f,0.15f,0.15f,1));
         ImGui::PushStyleColor(ImGuiCol_SliderGrab, ImVec4(1,0.67f,0,1));
         float vol = slot.volume;
         ImGui::PushItemWidth(30);
-        ImGui::VSliderFloat("##vol", ImVec2(30, stripH - 120), &vol, 0.0f, 1.5f, "");
+        ImGui::VSliderFloat("##vol", ImVec2(30, stripH - 170), &vol, 0.0f, 1.5f, "");
         ImGui::PopItemWidth();
         ImGui::SetItemTooltip("Mixer volume");
         if (vol != slot.volume) {
@@ -1787,15 +1785,15 @@ void renderMixer(AppState& state) {
         snprintf(vbuf, sizeof(vbuf), "%.2f", slot.volume);
         ImGui::Text("%s", vbuf);
         float pn = slot.pan;
-        ImGui::PushItemWidth(60);
-        ImGui::DragFloat("##pan", &pn, 0.01f, -1.0f, 1.0f, "Pan");
+        ImGui::PushItemWidth(50);
+        ImGui::DragFloat("##pan", &pn, 0.01f, -1.0f, 1.0f, "Pn");
         ImGui::PopItemWidth();
         ImGui::SetItemTooltip("Pan (L/R balance)");
         if (pn != slot.pan) {
             slot.pan = std::clamp(pn, -1.0f, 1.0f);
             state.project.modified = true;
         }
-
+        ImGui::SameLine();
         ImGui::PushStyleColor(ImGuiCol_Text, slot.muted ? COL_MUTED : IM_COL32(180,180,180,255));
         if (ImGui::SmallButton("M")) {
             pushUndo(state);
@@ -1804,92 +1802,144 @@ void renderMixer(AppState& state) {
         }
         ImGui::PopStyleColor();
         ImGui::SetItemTooltip("Mute / Unmute");
-        ImGui::Spacing();
-        ImGui::PushStyleColor(ImGuiCol_Text, slot.delayEnabled ? ImVec4(1.0f,0.7f,0.2f,1) : ImVec4(0.5f,0.5f,0.5f,1));
-        if (ImGui::SmallButton("DLY")) {
-            slot.delayEnabled = !slot.delayEnabled;
-            state.project.modified = true;
-        }
-        ImGui::PopStyleColor();
-        ImGui::SetItemTooltip("Enable / Disable Delay");
-        if (slot.delayEnabled) {
-            ImGui::SameLine();
-            ImGui::PushStyleColor(ImGuiCol_Text, slot.delayPingPong ? ImVec4(1.0f,0.7f,0.2f,1) : ImVec4(0.5f,0.5f,0.5f,1));
-            if (ImGui::SmallButton("P-P")) {
+        ImGui::Separator();
+        ImGui::TextColored(ImVec4(0.5f,0.5f,0.5f,1), "FX");
+        struct FxButton { const char* label; bool* enabled; };
+        FxButton fxBtns[] = {
+            {"DLY", &slot.delayEnabled},
+            {"FLT", &slot.filterEnabled},
+            {"LIM", &slot.limiterEnabled},
+            {"RVB", &slot.reverbEnabled},
+            {"CHO", &slot.chorusEnabled},
+            {"DST", &slot.distortionEnabled},
+        };
+        const char* fxTips[] = {
+            "Delay: feedback echo effect",
+            "Filter: low-pass or high-pass with resonance",
+            "Limiter: brickwall peak limiter",
+            "Reverb: hall/room spatial effect",
+            "Chorus: modulation for thickness/widening",
+            "Distortion: tanh saturation / overdrive",
+        };
+        for (int bi = 0; bi < 6; bi++) {
+            ImGui::PushStyleColor(ImGuiCol_Text, *fxBtns[bi].enabled ? ImVec4(1.0f,0.7f,0.2f,1) : ImVec4(0.4f,0.4f,0.4f,1));
+            if (ImGui::SmallButton(fxBtns[bi].label)) {
                 pushUndo(state);
-                slot.delayPingPong = !slot.delayPingPong;
+                *fxBtns[bi].enabled = !*fxBtns[bi].enabled;
                 state.project.modified = true;
             }
             ImGui::PopStyleColor();
-            ImGui::SetItemTooltip("Toggle Ping-Pong Delay (Crossed Feedback)");
-            ImGui::PushItemWidth(60);
+            ImGui::SetItemTooltip("%s", fxTips[bi]);
+            if (bi % 2 == 0) ImGui::SameLine();
+        }
+
+        ImGui::PushItemWidth(60);
+        if (slot.delayEnabled) {
             float dt = slot.delayTime;
-            if (ImGui::DragFloat("##dlyTime", &dt, 0.01f, 0.01f, 2.0f, "%.2fs")) {
+            if (ImGui::DragFloat("##dlyTime", &dt, 0.01f, 0.01f, 2.0f, "T%.2fs")) {
                 slot.delayTime = std::clamp(dt, 0.01f, 2.0f);
                 state.project.modified = true;
             }
-            ImGui::SetItemTooltip("Delay Time (seconds)");
+            ImGui::SetItemTooltip("Delay time in seconds");
+            ImGui::SameLine();
             float fb = slot.delayFeedback;
-            if (ImGui::DragFloat("##dlyFB", &fb, 0.01f, 0.0f, 0.95f, "FB%.2f")) {
+            if (ImGui::DragFloat("##dlyFB", &fb, 0.01f, 0.0f, 0.95f, "F%.2f")) {
                 slot.delayFeedback = std::clamp(fb, 0.0f, 0.95f);
                 state.project.modified = true;
             }
-            ImGui::SetItemTooltip("Delay Feedback");
+            ImGui::SetItemTooltip("Feedback amount (repeat decay)");
+            ImGui::SameLine();
             float wet = slot.delayWet;
             if (ImGui::DragFloat("##dlyWet", &wet, 0.01f, 0.0f, 1.0f, "W%.2f")) {
                 slot.delayWet = std::clamp(wet, 0.0f, 1.0f);
                 state.project.modified = true;
             }
-            ImGui::SetItemTooltip("Delay Wet Mix");
-            ImGui::PopItemWidth();
+            ImGui::SetItemTooltip("Delay wet/dry mix");
+            if (ImGui::SmallButton(slot.delayPingPong ? "P-P" : "NOR")) {
+                pushUndo(state);
+                slot.delayPingPong = !slot.delayPingPong;
+                state.project.modified = true;
+            }
+            ImGui::SetItemTooltip("Toggle ping-pong delay (crossed feedback)");
         }
-
-        ImGui::Spacing();
-        ImGui::PushStyleColor(ImGuiCol_Text, slot.filterEnabled ? ImVec4(1.0f,0.7f,0.2f,1) : ImVec4(0.5f,0.5f,0.5f,1));
-        if (ImGui::SmallButton("FLT")) {
-            pushUndo(state);
-            slot.filterEnabled = !slot.filterEnabled;
-            state.project.modified = true;
-        }
-        ImGui::PopStyleColor();
-        ImGui::SetItemTooltip("Enable / Disable Filter");
         if (slot.filterEnabled) {
-            ImGui::SameLine();
-            ImGui::PushStyleColor(ImGuiCol_Text, slot.filterIsHP ? ImVec4(1.0f,0.7f,0.2f,1) : ImVec4(0.5f,0.5f,0.5f,1));
+            ImGui::PushStyleColor(ImGuiCol_Text, slot.filterIsHP ? ImVec4(1.0f,0.7f,0.2f,1) : ImVec4(0.6f,0.6f,0.6f,1));
             if (ImGui::SmallButton(slot.filterIsHP ? "HP" : "LP")) {
                 pushUndo(state);
                 slot.filterIsHP = !slot.filterIsHP;
                 state.project.modified = true;
             }
             ImGui::PopStyleColor();
-            ImGui::SetItemTooltip("Toggle Low-Pass / High-Pass");
-            ImGui::PushItemWidth(60);
+            ImGui::SetItemTooltip("Toggle low-pass / high-pass filter mode");
+            ImGui::SameLine();
             float cutoffVal = slot.filterCutoff;
             float freqHz = 20.0f * std::pow(1000.0f, cutoffVal);
-            if (ImGui::DragFloat("##fltCutoff", &freqHz, freqHz * 0.05f, 20.0f, 20000.0f, "%.0fHz")) {
-                slot.filterCutoff = std::log10(freqHz / 20.0f) / 3.0f;
-                slot.filterCutoff = std::clamp(slot.filterCutoff, 0.01f, 0.99f);
+            if (ImGui::DragFloat("##fltCutoff", &freqHz, freqHz * 0.05f, 20.0f, 20000.0f, "%.0f")) {
+                slot.filterCutoff = std::clamp(std::log10(freqHz / 20.0f) / 3.0f, 0.01f, 0.99f);
                 state.project.modified = true;
             }
-            ImGui::SetItemTooltip("Filter Cutoff Frequency");
+            ImGui::SetItemTooltip("Filter cutoff frequency (20 Hz - 20 kHz)");
+            ImGui::SameLine();
             float res = slot.filterResonance;
             if (ImGui::DragFloat("##fltRes", &res, 0.01f, 0.0f, 0.95f, "Q%.2f")) {
                 slot.filterResonance = std::clamp(res, 0.0f, 0.95f);
                 state.project.modified = true;
             }
-            ImGui::SetItemTooltip("Filter Resonance");
-            ImGui::PopItemWidth();
+            ImGui::SetItemTooltip("Filter resonance / emphasis");
         }
-
-        ImGui::Spacing();
-        ImGui::PushStyleColor(ImGuiCol_Text, slot.limiterEnabled ? ImVec4(1.0f,0.7f,0.2f,1) : ImVec4(0.5f,0.5f,0.5f,1));
-        if (ImGui::SmallButton("LIM")) {
-            pushUndo(state);
-            slot.limiterEnabled = !slot.limiterEnabled;
-            state.project.modified = true;
+        if (slot.reverbEnabled) {
+            float rs = slot.reverbRoomSize;
+            if (ImGui::DragFloat("##rvbSize", &rs, 0.01f, 0.0f, 1.0f, "Sz%.2f")) {
+                slot.reverbRoomSize = std::clamp(rs, 0.0f, 1.0f);
+                state.project.modified = true;
+            }
+            ImGui::SetItemTooltip("Reverb room size (larger = longer decay)");
+            ImGui::SameLine();
+            float dp = slot.reverbDamping;
+            if (ImGui::DragFloat("##rvbDamp", &dp, 0.01f, 0.0f, 1.0f, "Dp%.2f")) {
+                slot.reverbDamping = std::clamp(dp, 0.0f, 1.0f);
+                state.project.modified = true;
+            }
+            ImGui::SetItemTooltip("Reverb high-frequency damping");
+            ImGui::SameLine();
+            float wet = slot.reverbWet;
+            if (ImGui::DragFloat("##rvbWet", &wet, 0.01f, 0.0f, 1.0f, "W%.2f")) {
+                slot.reverbWet = std::clamp(wet, 0.0f, 1.0f);
+                state.project.modified = true;
+            }
+            ImGui::SetItemTooltip("Reverb send level (wet mix)");
         }
-        ImGui::PopStyleColor();
-        ImGui::SetItemTooltip("Enable / Disable Brickwall Limiter");
+        if (slot.chorusEnabled) {
+            float rt = slot.chorusRate;
+            if (ImGui::DragFloat("##choRate", &rt, 0.01f, 0.1f, 5.0f, "Rt%.1f")) {
+                slot.chorusRate = std::clamp(rt, 0.1f, 5.0f);
+                state.project.modified = true;
+            }
+            ImGui::SetItemTooltip("Chorus modulation rate (Hz)");
+            ImGui::SameLine();
+            float dp = slot.chorusDepth;
+            if (ImGui::DragFloat("##choDpth", &dp, 0.01f, 0.0f, 1.0f, "Dp%.2f")) {
+                slot.chorusDepth = std::clamp(dp, 0.0f, 1.0f);
+                state.project.modified = true;
+            }
+            ImGui::SetItemTooltip("Chorus modulation depth");
+            ImGui::SameLine();
+            float wet = slot.chorusMix;
+            if (ImGui::DragFloat("##choMix", &wet, 0.01f, 0.0f, 1.0f, "W%.2f")) {
+                slot.chorusMix = std::clamp(wet, 0.0f, 1.0f);
+                state.project.modified = true;
+            }
+            ImGui::SetItemTooltip("Chorus wet mix");
+        }
+        if (slot.distortionEnabled) {
+            float dr = slot.distortionDrive;
+            if (ImGui::DragFloat("##dstDrv", &dr, 0.01f, 0.0f, 1.0f, "Dr%.2f")) {
+                slot.distortionDrive = std::clamp(dr, 0.0f, 1.0f);
+                state.project.modified = true;
+            }
+            ImGui::SetItemTooltip("Distortion drive amount");
+        }
+        ImGui::PopItemWidth();
         ImGui::PopID();
         ImGui::EndGroup();
         ImGui::SameLine();

@@ -138,6 +138,14 @@ void AudioEngine::startPlayback() {
         for (int i = 0; i < NUM_MIXER_SLOTS; i++)
             slotLimiters[i].reset();
     }
+    if (slotReverbsInit) {
+        for (int i = 0; i < NUM_MIXER_SLOTS; i++)
+            slotReverbs[i].reset();
+    }
+    if (slotChorusesInit) {
+        for (int i = 0; i < NUM_MIXER_SLOTS; i++)
+            slotChoruses[i].reset();
+    }
     transport->state.store(TransportState::Playing);
 }
 
@@ -160,6 +168,14 @@ void AudioEngine::stopPlayback() {
     if (slotLimitersInit) {
         for (int i = 0; i < NUM_MIXER_SLOTS; i++)
             slotLimiters[i].reset();
+    }
+    if (slotReverbsInit) {
+        for (int i = 0; i < NUM_MIXER_SLOTS; i++)
+            slotReverbs[i].reset();
+    }
+    if (slotChorusesInit) {
+        for (int i = 0; i < NUM_MIXER_SLOTS; i++)
+            slotChoruses[i].reset();
     }
 }
 
@@ -678,6 +694,17 @@ void AudioEngine::render(float* output, unsigned int frameCount) {
         slotLimitersInit = true;
     }
 
+    if (!slotReverbsInit) {
+        for (int i = 0; i < NUM_MIXER_SLOTS; i++) slotReverbs[i].reset();
+        slotReverbsInit = true;
+    }
+
+    if (!slotChorusesInit) {
+        juce::dsp::ProcessSpec spec{ (double)sampleRate, 512, 2 };
+        for (int i = 0; i < NUM_MIXER_SLOTS; i++) slotChoruses[i].prepare(spec);
+        slotChorusesInit = true;
+    }
+
     bool usePlaylist = hasPlaylist;
     int totalTicks;
     if (usePlaylist) {
@@ -1009,6 +1036,8 @@ void AudioEngine::render(float* output, unsigned int frameCount) {
         }
 
         if (numChannels >= 2) {
+            float fxBufL[NUM_MIXER_SLOTS][512];
+            float fxBufR[NUM_MIXER_SLOTS][512];
             for (int f = 0; f < chunkFrames; f++) {
                 int tickOffset = (int)(f * ticksPerFrame);
                 int currentFrameTick = currentTick + tickOffset;
@@ -1076,6 +1105,13 @@ void AudioEngine::render(float* output, unsigned int frameCount) {
                     auto& slot = project->mixer[mi];
                     float slotSigL = dryL;
                     float slotSigR = dryR;
+                    if (slot.distortionEnabled) {
+                        float d = slot.distortionDrive;
+                        if (d > 0.01f) {
+                            slotSigL = std::tanh(slotSigL * (1.0f + d * 4.0f)) / (1.0f + d * 4.0f) * (1.0f + d * 4.0f);
+                            slotSigR = std::tanh(slotSigR * (1.0f + d * 4.0f)) / (1.0f + d * 4.0f) * (1.0f + d * 4.0f);
+                        }
+                    }
                     if (slot.filterEnabled) {
                         float fc = std::clamp(slot.filterCutoff, 0.01f, 0.99f);
                         float q = 1.0f - std::clamp(slot.filterResonance, 0.0f, 0.95f);
@@ -1114,6 +1150,9 @@ void AudioEngine::render(float* output, unsigned int frameCount) {
                         wetL += tapL * wet;
                         wetR += tapR * wet;
                     }
+
+                    fxBufL[mi][f] = slotSigL;
+                    fxBufR[mi][f] = slotSigR;
                 }
 
                 float outL = (dryL + wetL) * mv;
@@ -1144,8 +1183,56 @@ void AudioEngine::render(float* output, unsigned int frameCount) {
 
                 outL += metronomeVal + prevSampleValL;
                 outR += metronomeVal + prevSampleValR;
-                output[idx]     = std::clamp(outL, -1.0f, 1.0f);
-                output[idx + 1] = std::clamp(outR, -1.0f, 1.0f);
+                output[idx]     = outL;
+                output[idx + 1] = outR;
+            }
+
+            for (int mi = 1; mi < (int)project->mixer.size() && mi < NUM_MIXER_SLOTS; mi++) {
+                auto& slot = project->mixer[mi];
+                if (slot.chorusEnabled) {
+                    slotChoruses[mi].setRate(slot.chorusRate);
+                    slotChoruses[mi].setDepth(slot.chorusDepth);
+                    slotChoruses[mi].setMix(1.0f);
+                    float* chans[2] = { fxBufL[mi], fxBufR[mi] };
+                    auto block = juce::dsp::AudioBlock<float>(chans, 2, (size_t)chunkFrames);
+                    juce::dsp::ProcessContextReplacing<float> ctx(block);
+                    slotChoruses[mi].process(ctx);
+                    float wet = slot.chorusMix;
+                    for (int f = 0; f < chunkFrames; f++) {
+                        int idx = (processedFrames + f) * numChannels;
+                        output[idx]     += fxBufL[mi][f] * wet;
+                        output[idx + 1] += fxBufR[mi][f] * wet;
+                    }
+                }
+                if (slot.reverbEnabled) {
+                    float dryL[512], dryR[512];
+                    memcpy(dryL, fxBufL[mi], chunkFrames * sizeof(float));
+                    memcpy(dryR, fxBufR[mi], chunkFrames * sizeof(float));
+                    juce::dsp::Reverb::Parameters params;
+                    params.roomSize = slot.reverbRoomSize;
+                    params.damping = slot.reverbDamping;
+                    params.wetLevel = 1.0f;
+                    params.dryLevel = 0.0f;
+                    params.width = 0.8f;
+                    params.freezeMode = 0.0f;
+                    slotReverbs[mi].setParameters(params);
+                    float* chans[2] = { fxBufL[mi], fxBufR[mi] };
+                    auto block = juce::dsp::AudioBlock<float>(chans, 2, (size_t)chunkFrames);
+                    juce::dsp::ProcessContextReplacing<float> ctx(block);
+                    slotReverbs[mi].process(ctx);
+                    float wet = slot.reverbWet;
+                    for (int f = 0; f < chunkFrames; f++) {
+                        int idx = (processedFrames + f) * numChannels;
+                        output[idx]     += (fxBufL[mi][f] - dryL[f]) * wet;
+                        output[idx + 1] += (fxBufR[mi][f] - dryR[f]) * wet;
+                    }
+                }
+            }
+
+            for (int f = 0; f < chunkFrames; f++) {
+                int idx = (processedFrames + f) * numChannels;
+                output[idx]     = std::clamp(output[idx], -1.0f, 1.0f);
+                output[idx + 1] = std::clamp(output[idx + 1], -1.0f, 1.0f);
             }
         } else {
             for (int f = 0; f < chunkFrames; f++) {

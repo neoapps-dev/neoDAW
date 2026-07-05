@@ -54,6 +54,16 @@ struct MixerSlot {
     float filterCutoff = 0.99f;   // 0.01 – 0.99 (maps exponentially 20Hz - 20kHz)
     float filterResonance = 0.0f; // 0.0 – 0.95
     bool limiterEnabled = false;
+    bool reverbEnabled = false;
+    float reverbRoomSize = 0.5f;
+    float reverbDamping = 0.5f;
+    float reverbWet = 0.3f;
+    bool chorusEnabled = false;
+    float chorusRate = 0.5f;
+    float chorusDepth = 0.5f;
+    float chorusMix = 0.3f;
+    bool distortionEnabled = false;
+    float distortionDrive = 0.3f;
 };
 
 struct PlaylistClip {

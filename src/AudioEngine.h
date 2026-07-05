@@ -12,6 +12,7 @@
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <juce_audio_devices/juce_audio_devices.h>
 #include <juce_audio_formats/juce_audio_formats.h>
+#include <juce_dsp/juce_dsp.h>
 #include <fluidlite.h>
 struct ClipRenderState {
     std::vector<int> activeNotes;
@@ -172,6 +173,10 @@ private:
     };
     MasterLimiter slotLimiters[NUM_MIXER_SLOTS];
     bool slotLimitersInit = false;
+    juce::dsp::Reverb slotReverbs[NUM_MIXER_SLOTS];
+    bool slotReverbsInit = false;
+    juce::dsp::Chorus<float> slotChoruses[NUM_MIXER_SLOTS];
+    bool slotChorusesInit = false;
     struct PreviewSampleState {
         std::vector<float> samples;
         int numChannels = 1;

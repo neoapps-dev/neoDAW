@@ -92,6 +92,8 @@ target_link_libraries(neodaw PRIVATE
   juce::juce_audio_basics
   juce::juce_audio_devices
   juce::juce_audio_formats
+  juce::juce_audio_basics
+  juce::juce_dsp
   juce::juce_core
   CURL::libcurl
 )

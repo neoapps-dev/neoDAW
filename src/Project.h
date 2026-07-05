@@ -63,7 +63,12 @@ inline void to_json(json& j, const MixerSlot& m) {
              {"delayFeedback", m.delayFeedback}, {"delayWet", m.delayWet},
              {"filterEnabled", m.filterEnabled}, {"filterIsHP", m.filterIsHP},
              {"filterCutoff", m.filterCutoff}, {"filterResonance", m.filterResonance},
-             {"limiterEnabled", m.limiterEnabled}};
+             {"limiterEnabled", m.limiterEnabled},
+             {"reverbEnabled", m.reverbEnabled}, {"reverbRoomSize", m.reverbRoomSize},
+             {"reverbDamping", m.reverbDamping}, {"reverbWet", m.reverbWet},
+             {"chorusEnabled", m.chorusEnabled}, {"chorusRate", m.chorusRate},
+             {"chorusDepth", m.chorusDepth}, {"chorusMix", m.chorusMix},
+             {"distortionEnabled", m.distortionEnabled}, {"distortionDrive", m.distortionDrive}};
 }
 inline void from_json(const json& j, MixerSlot& m) {
     j.at("name").get_to(m.name);
@@ -80,6 +85,16 @@ inline void from_json(const json& j, MixerSlot& m) {
     if (j.contains("filterCutoff")) j.at("filterCutoff").get_to(m.filterCutoff);
     if (j.contains("filterResonance")) j.at("filterResonance").get_to(m.filterResonance);
     if (j.contains("limiterEnabled")) j.at("limiterEnabled").get_to(m.limiterEnabled);
+    if (j.contains("reverbEnabled")) j.at("reverbEnabled").get_to(m.reverbEnabled);
+    if (j.contains("reverbRoomSize")) j.at("reverbRoomSize").get_to(m.reverbRoomSize);
+    if (j.contains("reverbDamping")) j.at("reverbDamping").get_to(m.reverbDamping);
+    if (j.contains("reverbWet")) j.at("reverbWet").get_to(m.reverbWet);
+    if (j.contains("chorusEnabled")) j.at("chorusEnabled").get_to(m.chorusEnabled);
+    if (j.contains("chorusRate")) j.at("chorusRate").get_to(m.chorusRate);
+    if (j.contains("chorusDepth")) j.at("chorusDepth").get_to(m.chorusDepth);
+    if (j.contains("chorusMix")) j.at("chorusMix").get_to(m.chorusMix);
+    if (j.contains("distortionEnabled")) j.at("distortionEnabled").get_to(m.distortionEnabled);
+    if (j.contains("distortionDrive")) j.at("distortionDrive").get_to(m.distortionDrive);
 }
 inline void to_json(json& j, const PlaylistClip& c) {
     j = json{{"track", c.track}, {"startTick", c.startTick},
