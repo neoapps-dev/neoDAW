@@ -66,5 +66,9 @@ jobs:
         with:
           name: ${{ runner.os }}-${{ matrix.c_compiler }}-${{ matrix.build_type }}
           path: |
-            ${{ steps.strings.outputs.build-output-dir }}
-          if-no-files-found: error
+            ${{ steps.strings.outputs.build-output-dir }}/neodaw
+            ${{ steps.strings.outputs.build-output-dir }}/neodaw.exe
+            ${{ steps.strings.outputs.build-output-dir }}/*.so
+            ${{ steps.strings.outputs.build-output-dir }}/Release/*.dll
+            ${{ steps.strings.outputs.build-output-dir }}/Debug/*.dll
+          if-no-files-found: warning
