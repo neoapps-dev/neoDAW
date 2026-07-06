@@ -1,11 +1,11 @@
-# neoDAW
+# NeoDAW
 
-A weird digital audio workstation made by a weird guy.
+A weird Digital Audio Workstation made by a weird guy.
 
 C++20, SDL2 + OpenGL 3.3, Dear ImGui (docking branch), JUCE 8 for audio I/O, FluidLite for SoundFont playback, custom synth engine. No VST support or recording yet!
 
 > [!WARNING]
-> neoDAW is **experimental software**. I can't even consider it pre-alpha yet. So, be sure to report bugs early and submit pull requests.
+> NeoDAW is **experimental software**. I can't even consider it pre-alpha yet. So, be sure to report bugs early and submit pull requests.
 
 ## Building
 
@@ -132,4 +132,4 @@ The `--render-debug` flag skips all UI initialization. It writes four WAV files 
 
 ## License
 
-neoDAW is licensed under the [MPL-2.0](LICENSE) license.
+NeoDAW is licensed under the [MPL-2.0](LICENSE) license.

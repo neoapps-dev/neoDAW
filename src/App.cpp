@@ -587,7 +587,7 @@ void renderMainMenu(AppState& state) {
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Help")) {
-            if (ImGui::MenuItem("About neoDAW")) { state.showAboutDialog = true; }
+            if (ImGui::MenuItem("About NeoDAW")) { state.showAboutDialog = true; }
             ImGui::EndMenu();
         }
 
@@ -2129,13 +2129,13 @@ void renderExportDialog(AppState& state) {
 
 void renderAboutDialog(AppState& state) {
     if (!state.showAboutDialog) return;
-    ImGui::OpenPopup("About neoDAW");
+    ImGui::OpenPopup("About NeoDAW");
     ImGui::SetNextWindowSize(ImVec2(350, 200), ImGuiCond_Appearing);
-    if (ImGui::BeginPopupModal("About neoDAW", &state.showAboutDialog)) {
-        ImGui::TextColored(ImVec4(1,0.67f,0,1), "neoDAW v0.0.0");
+    if (ImGui::BeginPopupModal("About NeoDAW", &state.showAboutDialog)) {
+        ImGui::TextColored(ImVec4(1,0.67f,0,1), "NeoDAW v0.0.0");
         ImGui::Text("A weird digital audio workstation made by");
         ImGui::Text("a weird guy.");
-        ImGui::Text("Built with C++, DearImGui and SDL.");
+        ImGui::Text("Built with C++, DearImGui, JUCE and SDL.");
         ImGui::Separator();
         ImGui::Text("Licensed under the MPL-2.0 license.");
         ImGui::Separator();
