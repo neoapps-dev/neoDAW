@@ -78,9 +78,8 @@ bool AudioEngine::init(const AudioSettings& settings) {
 }
 
 void AudioEngine::shutdown() {
-    if (fluidSynth) { delete_fluid_synth(fluidSynth); fluidSynth = nullptr; }
+    if (fluidSynth) { unloadAllSFonts(); delete_fluid_synth(fluidSynth); fluidSynth = nullptr; }
     if (fluidSettings) { delete_fluid_settings(fluidSettings); fluidSettings = nullptr; }
-    fluidSfontId = -1;
     if (audioDeviceManager) {
         audioDeviceManager->removeAudioCallback(this);
         audioDeviceManager->closeAudioDevice();
@@ -262,17 +261,27 @@ void AudioEngine::previewNoteOff(int key) {
 
 int AudioEngine::loadSFont(const std::string& path) {
     if (!fluidSynth) return -1;
-    unloadSFont();
+    auto it = loadedSFonts.find(path);
+    if (it != loadedSFonts.end()) return it->second;
     int sfontId = fluid_synth_sfload(fluidSynth, path.c_str(), 1);
-    if (sfontId >= 0) fluidSfontId = sfontId;
+    if (sfontId >= 0) loadedSFonts[path] = sfontId;
     return sfontId;
 }
 
-void AudioEngine::unloadSFont() {
-    if (fluidSynth && fluidSfontId >= 0) {
-        fluid_synth_sfunload(fluidSynth, fluidSfontId, 1);
-        fluidSfontId = -1;
+void AudioEngine::unloadSFont(int sfontId) {
+    if (!fluidSynth || sfontId < 0) return;
+    fluid_synth_sfunload(fluidSynth, sfontId, 1);
+    for (auto it = loadedSFonts.begin(); it != loadedSFonts.end(); ) {
+        if (it->second == sfontId) it = loadedSFonts.erase(it);
+        else ++it;
     }
+}
+
+void AudioEngine::unloadAllSFonts() {
+    if (!fluidSynth) return;
+    for (auto& [path, id] : loadedSFonts)
+        fluid_synth_sfunload(fluidSynth, id, 1);
+    loadedSFonts.clear();
 }
 
 bool AudioEngine::selectSFontPreset(int sfontId, int bank, int preset, int chan) {

@@ -27,6 +27,7 @@ struct Channel {
     bool useSF2 = false;
     std::string sf2Path;
     int sf2Preset = 0;
+    int sf2SfontId = -1;
     float volume = 0.8f, pan = 0.0f;
     int mixerChannel = 0;
     bool muted = false, soloed = false;

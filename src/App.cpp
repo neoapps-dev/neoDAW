@@ -330,7 +330,7 @@ bool appLoadProject(AppState& state, const char* path) {
         if (state.engine) {
             state.engine->clearSamples();
             state.engine->lockAudio();
-            state.engine->unloadSFont();
+            state.engine->unloadAllSFonts();
             for (auto& ch : state.project.channels) {
                 if (ch.isSampler && !ch.samplePath.empty()) {
                     ch.sampleIndex = state.engine->loadSample(ch.samplePath);
@@ -339,15 +339,13 @@ bool appLoadProject(AppState& state, const char* path) {
                 }
             }
 
-            int loadedSfontId = -1;
             for (size_t i = 0; i < state.project.channels.size(); i++) {
                 auto& ch = state.project.channels[i];
                 if (ch.useSF2 && !ch.sf2Path.empty()) {
-                    if (loadedSfontId < 0) {
-                        loadedSfontId = state.engine->loadSFont(ch.sf2Path);
-                    }
-                    if (loadedSfontId >= 0) {
-                        state.engine->selectSFontPreset(loadedSfontId, 0, ch.sf2Preset, (int)i);
+                    int sfontId = state.engine->loadSFont(ch.sf2Path);
+                    if (sfontId >= 0) {
+                        ch.sf2SfontId = sfontId;
+                        state.engine->selectSFontPreset(sfontId, 0, ch.sf2Preset, (int)i);
                     }
                 }
             }
@@ -379,6 +377,7 @@ bool appImportMIDI(AppState& state, const char* path, const char* sf2Path) {
             if (sfontId >= 0) {
                 for (int chIdx = chBefore; chIdx < (int)state.project.channels.size(); chIdx++) {
                     auto& ch = state.project.channels[chIdx];
+                    ch.sf2SfontId = sfontId;
                     int prog = ch.sf2Preset;
                     if (!state.engine->selectSFontPreset(sfontId, 0, prog, chIdx)) {
                         for (int p = 0; p < 128; p++) {
@@ -898,8 +897,8 @@ void renderChannelRack(AppState& state) {
         if (ch.useSF2) {
             ImGui::Text("SF2: %s", ch.sf2Path.empty() ? "(none)" : ch.sf2Path.c_str());
             if (!ch.sf2Path.empty()) {
-                if (state.engine && state.engine->fluidSfontId >= 0) {
-                    std::vector<AudioEngine::SoundFontPreset> presets = state.engine->getSoundFontPresets(state.engine->fluidSfontId);
+                if (state.engine && ch.sf2SfontId >= 0) {
+                    std::vector<AudioEngine::SoundFontPreset> presets = state.engine->getSoundFontPresets(ch.sf2SfontId);
                     if (!presets.empty()) {
                         std::string currentPresetName = "Select Preset...";
                         for (const auto& p : presets) {
@@ -919,7 +918,7 @@ void renderChannelRack(AppState& state) {
                                     ch.sf2Preset = p.preset;
                                     state.project.modified = true;
                                     state.engine->lockAudio();
-                                    state.engine->selectSFontPreset(state.engine->fluidSfontId, p.bank, p.preset, selCh);
+                                    state.engine->selectSFontPreset(ch.sf2SfontId, p.bank, p.preset, selCh);
                                     state.engine->unlockAudio();
                                 }
                                 if (isSelected) {
@@ -936,7 +935,7 @@ void renderChannelRack(AppState& state) {
                             ch.sf2Preset = std::clamp(preset, 0, 127);
                             state.project.modified = true;
                             state.engine->lockAudio();
-                            state.engine->selectSFontPreset(state.engine->fluidSfontId, 0, ch.sf2Preset, selCh);
+                            state.engine->selectSFontPreset(ch.sf2SfontId, 0, ch.sf2Preset, selCh);
                             state.engine->unlockAudio();
                         }
                         ImGui::PopItemWidth();
@@ -1731,6 +1730,7 @@ void renderPlaylist(AppState& state) {
                             state.engine->lockAudio();
                             int sfontId = state.engine->loadSFont(fpath);
                             if (sfontId >= 0) {
+                                ch.sf2SfontId = sfontId;
                                 int prog = 0;
                                 for (int p = 0; p < 128; p++) {
                                     if (state.engine->selectSFontPreset(sfontId, 0, p, chIdx)) {
@@ -2410,6 +2410,7 @@ void appRender(AppState& state, float deltaTime) {
                         state.engine->lockAudio();
                         int sfontId = state.engine->loadSFont(path);
                         if (sfontId >= 0) {
+                            ch.sf2SfontId = sfontId;
                             int prog = 0;
                             for (int p = 0; p < 128; p++) {
                                 if (state.engine->selectSFontPreset(sfontId, 0, p, state.project.selectedChannel)) {

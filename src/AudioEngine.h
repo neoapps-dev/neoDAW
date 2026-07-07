@@ -63,9 +63,9 @@ public:
         int preset = 0;
         std::string name;
     };
-    int fluidSfontId = -1;
     int loadSFont(const std::string& path);
-    void unloadSFont();
+    void unloadSFont(int sfontId);
+    void unloadAllSFonts();
     bool selectSFontPreset(int sfontId, int bank, int preset, int chan);
     std::vector<SoundFontPreset> getSoundFontPresets(int sfontId);
     void playSamplePreview(const std::string& path);
@@ -105,6 +105,7 @@ private:
     std::atomic<int> previewOn{0};
     fluid_settings_t* fluidSettings = nullptr;
     fluid_synth_t* fluidSynth = nullptr;
+    std::map<std::string, int> loadedSFonts;
     int lastMetronomeBeat = -1;
     int metronomeClickSampleRemaining = 0;
     float metronomeClickPhase = 0.0f;
