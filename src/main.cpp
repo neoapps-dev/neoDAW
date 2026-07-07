@@ -166,7 +166,7 @@ static void handleImportMIDI() {
     char sf2Path[MAX_PATH] = {0};
     OPENFILENAMEA sf2Ofn = {0};
     sf2Ofn.lStructSize = sizeof(sf2Ofn);
-    char sf2Filter[] = "SoundFont Files\0*.sf2\0All Files\0*.*\0";
+    char sf2Filter[] = "SoundFont Files\0*.sf2;*.sf3\0All Files\0*.*\0";
     sf2Ofn.lpstrFilter = sf2Filter;
     sf2Ofn.lpstrFile = sf2Path;
     sf2Ofn.nMaxFile = sizeof(sf2Path);
@@ -196,7 +196,7 @@ static void handleImportMIDI() {
     size_t len = strlen(path);
     if (len > 0 && path[len-1] == '\n') path[len-1] = '\0';
     if (strlen(path) == 0) return;
-    fp = popen("zenity --file-selection --title='Optional: Select SoundFont for MIDI (cancel to skip)' --file-filter='*.sf2' 2>/dev/null", "r");
+    fp = popen("zenity --file-selection --title='Optional: Select SoundFont for MIDI (cancel to skip)' --file-filter='*.sf2 *.sf3' 2>/dev/null", "r");
     char sf2Path[4096] = {0};
     const char* sf2 = nullptr;
     if (fp) {

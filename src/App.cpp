@@ -1720,7 +1720,7 @@ void renderPlaylist(AppState& state) {
                         state.project.modified = true;
                         setStatus(state, "Imported MIDI: %s", fpath.c_str());
                     }
-                } else if (ext == ".sf2") {
+                } else if (ext == ".sf2" || ext == ".sf3") {
                     pushUndo(state);
                     int chIdx = (int)state.project.channels.size();
                     addSF2Channel(state);
@@ -2401,7 +2401,7 @@ void appRender(AppState& state, float deltaTime) {
                 if (dot != std::string::npos) {
                     for (char c : path.substr(dot)) ext += (char)std::tolower((unsigned char)c);
                 }
-                if (ext == ".sf2") {
+                if (ext == ".sf2" || ext == ".sf3") {
                     ch.useSF2 = true;
                     ch.isSampler = false;
                     ch.sf2Path = path;

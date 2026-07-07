@@ -32,6 +32,7 @@ FetchContent_Declare(
 )
 set(WITH_FLOAT ON)
 set(STB_VORBIS ON)
+set(ENABLE_SF3 ON)
 FetchContent_MakeAvailable(fluidlite)
 #neo: midifile
 FetchContent_Declare(
