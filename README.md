@@ -125,7 +125,6 @@ The `--render-debug` flag skips all UI initialization. It writes four WAV files 
 - 8 mixer slots, compile-time constant, not configurable
 - Step sequencer: one note per step at C5, 16 steps, that's it
 - Undo copies everything.
-- One FluidLite instance, one SoundFont at a time
 - Only Windows and GNU/Linux
 - libcurl is linked but never actually used (leftover from an earlier idea)
 - No test suite lmfao, I hate those. `--render-debug` is as close as it gets
